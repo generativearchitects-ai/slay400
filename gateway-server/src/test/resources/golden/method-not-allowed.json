@@ -1,0 +1,1 @@
+{"type":"https://slay400.dev/problems/method-not-allowed","title":"Method not allowed","status":405,"instance":"urn:slay400:request:<id>","tenant":"acme","environment":"test","correlationId":"<id>"}

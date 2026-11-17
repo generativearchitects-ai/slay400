@@ -1,0 +1,20 @@
+cases:
+  - name: shipped order
+    when: { P0ORDN: 1001 }
+    returns: { P0STAT: S, P0DATE: "2026-11-20" }
+  - name: unknown order
+    when: { P0ORDN: 9999 }
+    returns: { P0ERR: KO, P0ERRC: E404, P0XERR: Order not found }
+  - name: refused order
+    when: { P0ORDN: 4 }
+    returns: { P0ERR: KO, P0ERRC: E999, P0XERR: Order refused }
+  - name: slow order
+    when: { P0ORDN: 5 }
+    delayMs: 300
+    returns: { P0STAT: P, P0DATE: "2026-12-01" }
+  - name: host down
+    when: { P0ORDN: 6 }
+    fails: unavailable
+  - name: program timeout
+    when: { P0ORDN: 7 }
+    fails: timeout
