@@ -1,0 +1,10 @@
+# A configuration for the invented "shop" fixture, for trying the gateway locally.
+# Listens on 127.0.0.1:8080. No credentials, no secrets.
+tenants:
+  acme:
+    bundles:
+      - ./shop/target/shop-1.0.0.rpgapi
+    environments:
+      test:
+        code: T0001
+        backend: mock

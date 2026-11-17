@@ -22,7 +22,7 @@ public record Started(GatewayConfig config, Gateway gateway, int environments, i
 
     /** The one line the server logs when it listens: address, port, tenants, environments and operations. */
     public String startLine() {
-        return "{\"event\":\"started\",\"address\":\"" + config.host() + "\",\"port\":" + config.port() + ",\"tenants\":" + config.tenants().size()
+        return "{\"event\":\"started\",\"address\":\"" + config.host().replace("\\", "\\\\").replace("\"", "\\\"") + "\",\"port\":" + config.port() + ",\"tenants\":" + config.tenants().size()
                 + ",\"environments\":" + environments + ",\"operations\":" + operations + "}";
     }
 }

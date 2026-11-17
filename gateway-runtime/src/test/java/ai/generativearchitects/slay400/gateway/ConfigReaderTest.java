@@ -58,6 +58,20 @@ class ConfigReaderTest {
         assertThat(config.file()).isEqualTo(dir.resolve("gateway.yaml"));
     }
 
+    @ParameterizedTest
+    @CsvSource({"1", "65535", "8080"})
+    void thePortBoundariesAreAccepted(int port) {
+        assertThat(read(minimal("server:\n  port: " + port + "\n")).config().orElseThrow().port()).isEqualTo(port);
+    }
+
+    @Test
+    void nestingUpToTheLimitIsAcceptedAndOneMoreIsNot() {
+        String ok = "a: " + "[".repeat(15) + "]".repeat(15) + "\n";
+        assertThat(codes(read(ok))).doesNotContain("GWY001");
+        String tooDeep = "a: " + "[".repeat(17) + "]".repeat(17) + "\n";
+        assertThat(codes(read(tooDeep))).contains("GWY001");
+    }
+
     @Test
     void readsServerSettings() {
         GatewayConfig config = read(minimal("server:\n  host: 0.0.0.0\n  port: 9090\n")).config().orElseThrow();

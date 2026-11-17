@@ -67,7 +67,7 @@ public final class HelidonServer {
         response.headers().forEach(res::header);
         response.contentType().ifPresent(type -> res.header(HeaderNames.CONTENT_TYPE.defaultCase(), type));
         byte[] body = response.body();
-        if (body.length == 0) {
+        if (body.length == 0 || req.prologue().method().text().equals("HEAD")) {
             res.send();
         } else {
             res.send(body);
@@ -86,16 +86,9 @@ public final class HelidonServer {
     /** Problem bodies for what Helidon answers by itself. */
     private static DirectHandlers directHandlers() {
         DirectHandler handler = (request, type, status, responseHeaders, message) -> {
-            ProblemKind kind = switch (status.code()) {
-                case 400 -> ProblemKind.REQUEST_INVALID;
-                case 403 -> ProblemKind.FORBIDDEN;
-                case 404 -> ProblemKind.NOT_FOUND;
-                case 405 -> ProblemKind.METHOD_NOT_ALLOWED;
-                default -> ProblemKind.INTERNAL_ERROR;
-            };
-            ProblemDetails problem = status.code() >= 400 && status.code() < 600 && ProblemKind.forStatus(status.code()).isPresent()
-                    ? ProblemDetails.of(ProblemKind.forStatus(status.code()).get(), "")
-                    : ProblemDetails.of(kind, "");
+            int code = status.code() >= 400 && status.code() < 600 ? status.code() : 500;
+            ProblemDetails problem = ProblemKind.forStatus(code).map(kind -> ProblemDetails.of(kind, ""))
+                    .orElseGet(() -> ProblemDetails.of(code, status.reasonPhrase(), ""));
             String correlationId = UUID.randomUUID().toString();
             responseHeaders.set(HeaderNames.CONTENT_TYPE, ProblemDetails.CONTENT_TYPE);
             responseHeaders.set(HeaderNames.create("X-Content-Type-Options"), "nosniff");
