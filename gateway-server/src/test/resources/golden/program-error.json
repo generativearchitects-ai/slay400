@@ -1,0 +1,1 @@
+{"type":"https://slay400.dev/problems/program-error","title":"The program reported an error","status":422,"detail":"Order refused","instance":"urn:slay400:request:<id>","code":"E999","tenant":"acme","environment":"test","correlationId":"<id>"}
