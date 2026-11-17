@@ -191,6 +191,7 @@ public final class GatewayLoader {
     /** The text of every injected parameter of an operation in an environment; an error for each that has no usable value. */
     private static Map<String, String> injected(ApiOperation operation, EnvironmentConfig environment, CompiledOperation compiled, List<Diagnostic> found) {
         Map<String, String> values = new LinkedHashMap<>();
+        boolean unresolved = false;
         List<FieldBinding> injectedBindings = operation.bindings().stream().filter(b -> b.direction() == Direction.INJECTED && b.injection().isPresent()).toList();
         for (FieldBinding binding : injectedBindings) {
             String text = binding.injection().get();
@@ -200,13 +201,14 @@ public final class GatewayLoader {
             } else if (text.contains(EXPRESSION_START)) {
                 found.add(error("GWY012", "The environment " + environment.name() + " has no value for " + text + ", which the operation "
                         + operation.id() + " injects into " + binding.fieldPath() + "; only ${environment.code} is available in this version", environment.at()));
+                unresolved = true;
                 continue;
             } else {
                 value = text;
             }
             values.put(binding.field().name(), value);
         }
-        if (compiled != null && !injectedBindings.isEmpty()) {
+        if (compiled != null && !unresolved && !injectedBindings.isEmpty()) {
             for (ValueProblem problem : compiled.codec().encode(Map.of(), values).problems()) {
                 boolean injectedField = injectedBindings.stream().anyMatch(b -> b.fieldPath().equals(problem.fieldPath()));
                 if (injectedField) {

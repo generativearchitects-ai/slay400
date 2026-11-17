@@ -40,7 +40,7 @@ import org.snakeyaml.engine.v2.schema.CoreSchema;
  *
  * <p>Diagnostic codes: {@code GWY001} the file cannot be read or is not YAML for this tool; {@code GWY002} unknown key;
  * {@code GWY003} wrong type; {@code GWY004} empty section or value; {@code GWY005} missing key; {@code GWY006} invalid value;
- * {@code GWY007} environment variable not set; {@code GWY008} edition limit ({@link EditionLimits}).
+ * {@code GWY007} environment variable not set; {@code GWY008} edition limit ({@link EditionLimits}); {@code GWY009} repeated key.
  */
 public final class ConfigReader {
 
@@ -51,6 +51,8 @@ public final class ConfigReader {
     private static final Pattern PORT = Pattern.compile("[0-9]{1,5}");
     private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{([A-Za-z_][A-Za-z0-9_]*)}");
     private static final String RESERVED = "health";
+    private static final Set<String> CORE_TAGS = Set.of("tag:yaml.org,2002:str", "tag:yaml.org,2002:int", "tag:yaml.org,2002:float",
+            "tag:yaml.org,2002:bool", "tag:yaml.org,2002:null", "tag:yaml.org,2002:map", "tag:yaml.org,2002:seq");
 
     private final Path file;
     private final String shown;
@@ -119,6 +121,8 @@ public final class ConfigReader {
         }
         if (!depthOk(root.get(), 0)) {
             error("GWY001", "The configuration file is nested more than " + MAX_DEPTH + " levels deep", at(root.get()));
+        }
+        if (!problems.isEmpty()) {
             return Optional.empty();
         }
         return top(root.get());
@@ -134,6 +138,10 @@ public final class ConfigReader {
     private boolean depthOk(Node node, int depth) {
         if (depth > MAX_DEPTH) {
             return false;
+        }
+        if (!CORE_TAGS.contains(node.getTag().getValue())) {
+            error("GWY001", "The configuration file is not valid YAML for this tool: the tag " + safe(node.getTag().getValue()) + " is not allowed", at(node));
+            return true;
         }
         if (node instanceof MappingNode mapping) {
             for (NodeTuple tuple : mapping.getValue()) {
@@ -162,9 +170,6 @@ public final class ConfigReader {
         if (server != null) {
             Optional<Map<String, Node>> settings = entries(server, Set.of("host", "port"), "The section server");
             if (settings.isPresent()) {
-                if (settings.get().isEmpty()) {
-                    error("GWY004", "The section server is empty", at(server));
-                }
                 Node hostNode = settings.get().get("host");
                 if (hostNode != null) {
                     host = text(hostNode, "server.host").filter(h -> {
@@ -187,9 +192,6 @@ public final class ConfigReader {
             error("GWY005", "The key tenants is missing", at(root));
         } else {
             entries(tenantsNode, null, "The section tenants").ifPresent(map -> {
-                if (map.isEmpty()) {
-                    error("GWY004", "The section tenants is empty", at(tenantsNode));
-                }
                 map.forEach((name, node) -> tenant(name, node, keyNode(tenantsNode, name)).ifPresent(tenants::add));
             });
         }
@@ -224,7 +226,7 @@ public final class ConfigReader {
         List<SourceLocation> sources = new ArrayList<>();
         Node bundlesNode = entries.get().get("bundles");
         if (bundlesNode == null) {
-            error("GWY005", "The tenant " + safe(name) + " has no key bundles", at(node));
+            error("GWY005", "The tenant " + safe(name) + " has no key bundles", at(keyNode));
         } else if (!(bundlesNode instanceof SequenceNode sequence)) {
             error("GWY003", "bundles must be a list of file names", at(bundlesNode));
         } else if (sequence.getValue().isEmpty()) {
@@ -244,12 +246,9 @@ public final class ConfigReader {
         List<EnvironmentConfig> environments = new ArrayList<>();
         Node environmentsNode = entries.get().get("environments");
         if (environmentsNode == null) {
-            error("GWY005", "The tenant " + safe(name) + " has no key environments", at(node));
+            error("GWY005", "The tenant " + safe(name) + " has no key environments", at(keyNode));
         } else {
             entries(environmentsNode, null, "The section environments").ifPresent(map -> {
-                if (map.isEmpty()) {
-                    error("GWY004", "The section environments of the tenant " + safe(name) + " is empty", at(environmentsNode));
-                }
                 map.forEach((envName, envNode) -> environment(envName, envNode, keyNode(environmentsNode, envName)).ifPresent(environments::add));
             });
         }
@@ -265,14 +264,14 @@ public final class ConfigReader {
         Optional<String> code = Optional.empty();
         Node codeNode = entries.get().get("code");
         if (codeNode == null) {
-            error("GWY005", "The environment " + safe(name) + " has no key code", at(node));
+            error("GWY005", "The environment " + safe(name) + " has no key code", at(keyNode));
         } else {
             code = text(codeNode, "code");
         }
         Optional<Backend> backend = Optional.empty();
         Node backendNode = entries.get().get("backend");
         if (backendNode == null) {
-            error("GWY005", "The environment " + safe(name) + " has no key backend", at(node));
+            error("GWY005", "The environment " + safe(name) + " has no key backend", at(keyNode));
         } else {
             Optional<String> value = text(backendNode, "backend");
             if (value.isPresent()) {
@@ -309,23 +308,26 @@ public final class ConfigReader {
             error("GWY003", what + " must be a mapping", at(node));
             return Optional.empty();
         }
+        if (mapping.getValue().isEmpty()) {
+            error("GWY004", what + " is empty", at(node));
+            return Optional.empty();
+        }
         Map<String, Node> entries = new LinkedHashMap<>();
-        boolean ok = true;
         for (NodeTuple tuple : mapping.getValue()) {
             if (!(tuple.getKeyNode() instanceof ScalarNode key)) {
                 error("GWY003", "A key must be a text", at(tuple.getKeyNode()));
-                ok = false;
                 continue;
             }
             String name = key.getValue();
             if (allowed != null && !allowed.contains(name)) {
                 error("GWY002", "Unknown key " + safe(name), at(key));
-                ok = false;
-                continue;
+            } else if (entries.containsKey(name)) {
+                error("GWY009", "The key " + safe(name) + " is repeated", at(key));
+            } else {
+                entries.put(name, tuple.getValueNode());
             }
-            entries.put(name, tuple.getValueNode());
         }
-        return ok ? Optional.of(entries) : Optional.empty();
+        return Optional.of(entries);
     }
 
     private Node keyNode(Node mapping, String name) {

@@ -52,6 +52,22 @@
     </dependency>
   </dependencies>
 
+  <build>
+    <plugins>
+      <!-- The fixtures helper is shared with the tests of gateway-server. -->
+      <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
   <profiles>
     <profile>
       <id>mutation</id>
