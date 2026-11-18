@@ -123,4 +123,31 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <!-- The gateway over HTTP against a real IBM i (kickoff 03), started by the owner through the ibmi workflow. See gateway-ibmi. -->
+    <profile>
+      <id>ibmi</id>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <configuration>
+              <includes>
+                <include>**/*IT.java</include>
+              </includes>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>integration-test</goal>
+                  <goal>verify</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>
