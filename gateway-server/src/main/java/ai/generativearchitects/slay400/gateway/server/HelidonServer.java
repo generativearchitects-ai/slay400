@@ -7,25 +7,29 @@ import ai.generativearchitects.slay400.gateway.pipeline.RuntimeRequest;
 import ai.generativearchitects.slay400.gateway.pipeline.RuntimeResponse;
 import ai.generativearchitects.slay400.http.ProblemDetails;
 import ai.generativearchitects.slay400.http.ProblemKind;
-import io.helidon.common.buffers.DataReader;
 import io.helidon.common.uri.UriQuery;
 import io.helidon.http.DirectHandler;
 import io.helidon.http.Header;
 import io.helidon.http.HeaderNames;
 import io.helidon.http.Status;
 import io.helidon.webserver.WebServer;
+import io.helidon.webserver.http1.Http1Config;
 import io.helidon.webserver.http.DirectHandlers;
 import io.helidon.webserver.http.ServerRequest;
 import io.helidon.webserver.http.ServerResponse;
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * The Helidon adapter: it turns a Helidon request into a {@link RuntimeRequest}, hands it to the {@link Gateway}, and sends the
@@ -39,19 +43,35 @@ public final class HelidonServer {
     private HelidonServer() {
     }
 
-    /** Starts listening on the address and port of the configuration. */
+    /** Starts listening on the address and port of the configuration, with the {@link ServerLimits#DEFAULTS}. */
     public static WebServer start(Started started) {
+        return start(started, ServerLimits.DEFAULTS);
+    }
+
+    /** Starts listening on the address and port of the configuration, with these limits. */
+    static WebServer start(Started started, ServerLimits limits) {
         Gateway gateway = started.gateway();
         return WebServer.builder()
                 .host(started.config().host())
                 .port(started.config().port())
+                .maxPayloadSize(limits.maxPayloadBytes())
+                .maxTcpConnections(limits.maxConnections())
+                .idleConnectionTimeout(limits.idleTimeout())
+                .idleConnectionPeriod(limits.idleCheckPeriod())
+                // Helidon 4.5.7 declares this option but does not apply it to accepted connections; set so that it applies if it
+                // ever does. The body has its own deadline, below.
+                .connectionOptions(options -> options.readTimeout(limits.readTimeout()))
+                // The only protocol is HTTP/1 with these limits. A second, discovered one would make Helidon close a malformed
+                // request line without an answer instead of answering it 400.
+                .protocolsDiscoverServices(false)
+                .addProtocol(Http1Config.builder().maxPrologueLength(limits.maxRequestLineBytes()).maxHeadersSize(limits.maxHeadersBytes()).build())
                 .directHandlers(directHandlers(gateway))
-                .routing(routing -> routing.any((req, res) -> handle(gateway, req, res)))
+                .routing(routing -> routing.any((req, res) -> handle(gateway, limits, req, res)))
                 .build()
                 .start();
     }
 
-    private static void handle(Gateway gateway, ServerRequest req, ServerResponse res) {
+    private static void handle(Gateway gateway, ServerLimits limits, ServerRequest req, ServerResponse res) {
         String path = req.prologue().uriPath().rawPath();
         UriQuery query = req.query();
         Map<String, List<String>> queryValues = new LinkedHashMap<>();
@@ -64,7 +84,7 @@ public final class HelidonServer {
         }
         Optional<String> contentType = req.headers().first(HeaderNames.CONTENT_TYPE);
         RuntimeResponse response = gateway.handle(new RuntimeRequest(req.prologue().method().text(), path, queryValues, headers, contentType,
-                () -> readBody(req, gateway.maxBodyBytes())));
+                () -> readBody(req, gateway.maxBodyBytes(), limits.readTimeout())));
         res.status(Status.create(response.status()));
         response.headers().forEach(res::header);
         response.contentType().ifPresent(type -> res.header(HeaderNames.CONTENT_TYPE.defaultCase(), type));
@@ -77,14 +97,34 @@ public final class HelidonServer {
     }
 
     /**
-     * Reads at most {@code max + 1} bytes: one more than the limit is enough to know that the body is over it. A connection that
-     * ends or stops sending before the body is complete is {@link ClientGoneException}: Helidon reports the first as
-     * {@code InsufficientDataAvailableException}, the second, after the read time-out, as an I/O error.
+     * Reads at most {@code max + 1} bytes: one more than the limit is enough to know that the body is over it. The whole body must
+     * arrive within {@code deadline}. The bytes are read on a virtual thread of their own; when the deadline passes, that thread is
+     * interrupted, which closes the connection. A connection that ends, or a body that does not arrive in time, is
+     * {@link ClientGoneException}.
      */
-    private static byte[] readBody(ServerRequest req, int max) {
-        try (InputStream in = req.content().inputStream()) {
-            return in.readNBytes(max + 1);
-        } catch (IOException | UncheckedIOException | DataReader.InsufficientDataAvailableException e) {
+    static byte[] readBody(ServerRequest req, int max, Duration deadline) {
+        return readWithDeadline(() -> {
+            try (InputStream in = req.content().inputStream()) {
+                return in.readNBytes(max + 1);
+            }
+        }, deadline);
+    }
+
+    /** Runs a blocking read on a virtual thread of its own and waits for it at most {@code deadline}. */
+    static byte[] readWithDeadline(Callable<byte[]> read, Duration deadline) {
+        FutureTask<byte[]> task = new FutureTask<>(read);
+        Thread reader = Thread.ofVirtual().name("body-reader").start(task);
+        try {
+            return task.get(deadline.toNanos(), TimeUnit.NANOSECONDS);
+        } catch (TimeoutException e) {
+            reader.interrupt();
+            throw new ClientGoneException();
+        } catch (ExecutionException e) {
+            // Helidon reports a connection that ended as InsufficientDataAvailableException, other failures as I/O errors.
+            throw new ClientGoneException();
+        } catch (InterruptedException e) {
+            reader.interrupt();
+            Thread.currentThread().interrupt();
             throw new ClientGoneException();
         }
     }
