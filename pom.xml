@@ -36,6 +36,7 @@
 
   <modules>
     <module>gateway-runtime</module>
+    <module>gateway-ibmi</module>
     <module>gateway-server</module>
   </modules>
 
@@ -49,6 +50,8 @@
     <snakeyaml-engine.version>3.2</snakeyaml-engine.version>
     <!-- Helidon 4 line, Helidon SE (decisions 93 and 97; the patch release is decision 1 of the pull request). -->
     <helidon.version>4.5.7</helidon.version>
+    <!-- JTOpen, the open-source IBM Toolbox for Java, IBM Public License 1.0. A dependency of gateway-ibmi only (kickoff 03). -->
+    <jt400.version>21.0.7</jt400.version>
 
     <!-- The same test and mutation tooling as slay400-core. -->
     <junit.version>5.11.4</junit.version>
@@ -92,6 +95,11 @@
         <groupId>io.helidon.webserver</groupId>
         <artifactId>helidon-webserver</artifactId>
         <version>${helidon.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>net.sf.jt400</groupId>
+        <artifactId>jt400</artifactId>
+        <version>${jt400.version}</version>
       </dependency>
       <dependency>
         <groupId>org.junit.jupiter</groupId>
@@ -144,6 +152,10 @@
         </plugin>
         <plugin>
           <artifactId>maven-surefire-plugin</artifactId>
+          <version>3.5.2</version>
+        </plugin>
+        <plugin>
+          <artifactId>maven-failsafe-plugin</artifactId>
           <version>3.5.2</version>
         </plugin>
         <plugin>

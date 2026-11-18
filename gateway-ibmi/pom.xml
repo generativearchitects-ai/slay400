@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>ai.generativearchitects.slay400</groupId>
+    <artifactId>gateway-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>gateway-ibmi</artifactId>
+  <name>gateway-ibmi</name>
+  <description>The ibmi backend: program calls on IBM i through JTOpen. The only module that depends on JT400.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>ai.generativearchitects.slay400</groupId>
+      <artifactId>gateway-runtime</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>ai.generativearchitects.slay400</groupId>
+      <artifactId>pcml-model</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.generativearchitects.slay400</groupId>
+      <artifactId>pcml-codec</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>net.sf.jt400</groupId>
+      <artifactId>jt400</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>ai.generativearchitects.slay400</groupId>
+      <artifactId>gateway-runtime</artifactId>
+      <version>${project.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <!-- Test scope only: the fixtures are built into bundles with the modules of slay400-core. -->
+    <dependency>
+      <groupId>ai.generativearchitects.slay400</groupId>
+      <artifactId>pcml-tasks</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <profiles>
+    <profile>
+      <id>mutation</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.pitest</groupId>
+            <artifactId>pitest-maven</artifactId>
+            <configuration>
+              <targetClasses>
+                <param>ai.generativearchitects.slay400.gateway.ibmi.*</param>
+              </targetClasses>
+              <!-- The adapter to JTOpen's connection classes needs a system; it is tested in the ibmi profile only. -->
+              <excludedClasses>
+                <param>ai.generativearchitects.slay400.gateway.ibmi.Jt400*</param>
+              </excludedClasses>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <!--
+      Tests against a real IBM i (kickoff 03). Started by the owner through the ibmi workflow; never in the default build or CI.
+      The tests are skipped unless IBMI_HOST, IBMI_USER, IBMI_PASSWORD and IBMI_LIBRARY are set. Select a class with -Dit.test.
+    -->
+    <profile>
+      <id>ibmi</id>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <configuration>
+              <includes>
+                <include>**/*IT.java</include>
+              </includes>
+              <redirectTestOutputToFile>false</redirectTestOutputToFile>
+            </configuration>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>integration-test</goal>
+                  <goal>verify</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>
