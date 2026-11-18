@@ -28,14 +28,22 @@ public sealed interface CallOutcome {
     }
 
     /**
-     * The call failed in some other way: the HTTP status is 502.
+     * The call failed in some other way, for example with an escape message or because the program was not found: the HTTP
+     * status is 502.
      *
-     * @param reason what happened, for the log of the operator; never shown to the caller
+     * @param reason     what happened, for the log of the operator; never shown to the caller
+     * @param messageIds the ids of the messages the system returned with the failure, if any, such as {@code CPF9811}
      */
-    record Failed(String reason) implements CallOutcome {
-        /** @throws NullPointerException if {@code reason} is {@code null} */
+    record Failed(String reason, List<String> messageIds) implements CallOutcome {
+        /** @throws NullPointerException if an argument is {@code null} */
         public Failed {
             Objects.requireNonNull(reason, "reason");
+            messageIds = List.copyOf(messageIds);
+        }
+
+        /** A failure without message ids. */
+        public Failed(String reason) {
+            this(reason, List.of());
         }
     }
 }

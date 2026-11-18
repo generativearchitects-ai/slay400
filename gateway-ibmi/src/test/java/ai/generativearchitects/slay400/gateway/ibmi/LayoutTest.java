@@ -275,8 +275,8 @@ class LayoutTest {
         byte[] var = bytes("FFFFFFFFFF");
         new Layout.VarText("F", 2, 2, Optional.empty()).write(text("A"), var, 1, CCSID_37);
         assertThat(hex(var)).isEqualTo("FF0001C100");
-        byte[] raw = bytes("FFFFFF");
-        new Layout.Bytes("F", 1).write(new WireValue.Bytes(bytes("01")), raw, 1, CCSID_37);
-        assertThat(hex(raw)).isEqualTo("FF01FF");
+        byte[] raw = bytes("FFFFFFFF");
+        new Layout.Bytes("F", 2).write(new WireValue.Bytes(bytes("01")), raw, 1, CCSID_37);
+        assertThat(hex(raw)).isEqualTo("FF0100FF");
     }
 }

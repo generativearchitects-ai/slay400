@@ -21,6 +21,11 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
+      <groupId>ai.generativearchitects.slay400</groupId>
+      <artifactId>gateway-ibmi</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>io.helidon.webserver</groupId>
       <artifactId>helidon-webserver</artifactId>
     </dependency>
@@ -71,6 +76,47 @@
             <configuration>
               <outputDirectory>${project.build.directory}/dist/lib</outputDirectory>
               <includeScope>runtime</includeScope>
+            </configuration>
+          </execution>
+          <!-- JTOpen is distributed under its own licence, the IBM Public License 1.0: its text, as shipped in the JTOpen jar, unchanged. -->
+          <execution>
+            <id>jtopen-licence</id>
+            <phase>package</phase>
+            <goals>
+              <goal>unpack</goal>
+            </goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>net.sf.jt400</groupId>
+                  <artifactId>jt400</artifactId>
+                  <version>${jt400.version}</version>
+                  <includes>license.html</includes>
+                  <outputDirectory>${project.build.directory}/dist/licenses/jtopen</outputDirectory>
+                </artifactItem>
+              </artifactItems>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- The notice for the third-party components of the distribution. -->
+      <plugin>
+        <artifactId>maven-resources-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>dist-notices</id>
+            <phase>package</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/dist</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>src/dist</directory>
+                  <filtering>true</filtering>
+                </resource>
+              </resources>
             </configuration>
           </execution>
         </executions>

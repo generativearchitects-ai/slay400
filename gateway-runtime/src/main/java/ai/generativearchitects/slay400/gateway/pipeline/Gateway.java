@@ -192,7 +192,8 @@ public final class Gateway {
                 return kind(ProblemKind.TIMEOUT, trace, correlationId);
             }
             case CallOutcome.Failed failed -> {
-                LOG.log(System.Logger.Level.WARNING, "Program call failed, correlation id " + correlationId + ": " + failed.reason());
+                LOG.log(System.Logger.Level.WARNING, "Program call failed, tenant " + tenant.name() + ", environment " + environment.name() + ", correlation id "
+                        + correlationId + ": " + failed.reason());
                 return kind(ProblemKind.PROGRAM_CALL_FAILED, trace, correlationId);
             }
             case CallOutcome.Returned returned -> {
