@@ -1,9 +1,10 @@
 # Notices for third-party components
 
-The libraries in `lib/` are third-party components. They are not covered by the gateway's licence (`LICENSE` in the gateway's
-repository): each is distributed under its own licence. This file holds the notice that the licence of JTOpen asks for. The
-other libraries (Helidon, Jackson, SnakeYAML Engine and the modules of slay400-core) are under the Apache License 2.0 and are
-not listed here yet.
+The libraries in `lib/` are distributed under their own licences. Third-party libraries are not covered by the gateway's
+licence (`LICENSE` in the gateway's repository).
+
+Every library of this distribution is listed, with its version and licence, in `bom.json`: a CycloneDX bill of materials,
+written at build time from the dependency list of the gateway. This file adds the notice that the licence of JTOpen asks for.
 
 ## JTOpen ${jt400.version}
 

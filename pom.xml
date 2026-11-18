@@ -52,6 +52,8 @@
     <helidon.version>4.5.7</helidon.version>
     <!-- JTOpen, the open-source IBM Toolbox for Java, IBM Public License 1.0. A dependency of gateway-ibmi only (kickoff 03). -->
     <jt400.version>21.0.7</jt400.version>
+    <!-- Writes the list of the distribution's libraries, with version and licence, at build time (kickoff 04, step 0.4). -->
+    <cyclonedx.version>2.9.3</cyclonedx.version>
 
     <!-- The same test and mutation tooling as slay400-core. -->
     <junit.version>5.11.4</junit.version>
@@ -157,6 +159,11 @@
         <plugin>
           <artifactId>maven-failsafe-plugin</artifactId>
           <version>3.5.2</version>
+        </plugin>
+        <plugin>
+          <groupId>org.cyclonedx</groupId>
+          <artifactId>cyclonedx-maven-plugin</artifactId>
+          <version>${cyclonedx.version}</version>
         </plugin>
         <plugin>
           <artifactId>maven-jar-plugin</artifactId>
