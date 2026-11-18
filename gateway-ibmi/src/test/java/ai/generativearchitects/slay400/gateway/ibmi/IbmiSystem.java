@@ -60,12 +60,21 @@ final class IbmiSystem {
         return new IbmiSettings(host(), libraryList, new Credentials(user(), System.getenv(PASSWORD).toCharArray()), true, 1, callTimeoutSeconds);
     }
 
-    /** The text with the host, the user, the password and the library replaced, whatever their case. */
+    /** The text with the host, the user, the password and the library replaced, whatever their case: for logs and reports. */
     static String redact(String text) {
+        return redact(text, "<library>");
+    }
+
+    /** A PCML document with the same replacements, and the library written as {@value #LIBRARY_PLACEHOLDER}, as in the fixtures. */
+    static String redactPcml(String pcml) {
+        return redact(pcml, LIBRARY_PLACEHOLDER);
+    }
+
+    private static String redact(String text, String library) {
         String out = text;
         out = replace(out, System.getenv(PASSWORD), "<password>");
         out = replace(out, host(), "<host>");
-        out = replace(out, library(), LIBRARY_PLACEHOLDER);
+        out = replace(out, library(), library);
         out = replace(out, user(), "<user>");
         return out;
     }

@@ -327,7 +327,7 @@ class SpikeIT {
 
     private static String report(int ccsid, Map<String, Result> document, Map<String, Result> raw, Map<String, String> responses) {
         StringBuilder out = new StringBuilder("# Spike report: how structs travel (gateway kickoff 03)\n\n");
-        out.append("Job CCSID of the connections: ").append(ccsid).append(". Library written as ").append(IbmiSystem.LIBRARY_PLACEHOLDER).append(".\n\n");
+        out.append("Job CCSID of the connections: ").append(ccsid).append(". Library written as <library>.\n\n");
         out.append("## Which way works for each shape\n\n| Shape | Document | Raw |\n|---|---|---|\n");
         for (Shape shape : SHAPES) {
             out.append("| ").append(shape.shape()).append(" (").append(shape.program()).append(") | ").append(cell(document.get(shape.program()))).append(" | ")

@@ -82,7 +82,7 @@ class IbmiSetupIT {
                 }
                 int ccsid = pcmlFile.getCCSID();
                 String pcml = ccsid == 1208 ? new String(bytes, StandardCharsets.UTF_8) : new CharConverter(ccsid, system).byteArrayToString(bytes);
-                String redacted = IbmiSystem.redact(pcml);
+                String redacted = IbmiSystem.redactPcml(pcml);
                 Files.writeString(out.resolve(program + ".pcml"), redacted);
                 String fixture = Files.readString(IbmiSystem.root().resolve("fixtures/ibmi/apis/" + program + "/" + program + ".pcml"));
                 List<String> differences = PcmlComparison.differences(fixture, redacted);
