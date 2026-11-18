@@ -50,7 +50,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-          cache: maven
+          # No build cache: this job holds the secrets of the test system.
       - name: Build without tests
         run: ./mvnw -B -DskipTests install
       - name: Setup tool (copy, compile, bring back the PCML)
@@ -66,3 +66,4 @@ jobs:
           name: ibmi-results
           path: gateway-ibmi/target/ibmi
           if-no-files-found: ignore
+          retention-days: 7
