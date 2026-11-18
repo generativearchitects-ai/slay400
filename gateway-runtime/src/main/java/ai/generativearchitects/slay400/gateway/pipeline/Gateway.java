@@ -44,6 +44,9 @@ public final class Gateway {
     /** The header that carries the correlation id, in both directions. */
     public static final String CORRELATION_HEADER = "X-Correlation-Id";
 
+    /** The problem recorded in the access line when the client went away while its body was read. */
+    public static final String CLIENT_GONE = "client-gone";
+
     private static final System.Logger LOG = System.getLogger("slay400.gateway");
     private static final Pattern CORRELATION = Pattern.compile("[A-Za-z0-9._-]{1,64}");
     private static final byte[] HEALTH_BODY = "{\"status\":\"ok\"}".getBytes(StandardCharsets.UTF_8);
@@ -82,6 +85,12 @@ public final class Gateway {
         RuntimeResponse response;
         try {
             response = process(request, correlationId, trace);
+        } catch (ClientGoneException e) {
+            // Nobody receives this answer; the access line still records the request.
+            LOG.log(System.Logger.Level.INFO, "The client went away while its body was read, correlation id " + correlationId);
+            trace.problems.clear();
+            trace.problems.add(CLIENT_GONE);
+            response = problem(ProblemDetails.of(ProblemKind.REQUEST_INVALID, ""), trace, correlationId, Map.of());
         } catch (RuntimeException | StackOverflowError | OutOfMemoryError e) {
             LOG.log(System.Logger.Level.ERROR, "Unexpected error, correlation id " + correlationId, e);
             trace.problems.clear();

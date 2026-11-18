@@ -1,11 +1,13 @@
 package ai.generativearchitects.slay400.gateway.server;
 
 import ai.generativearchitects.slay400.gateway.load.Started;
+import ai.generativearchitects.slay400.gateway.pipeline.ClientGoneException;
 import ai.generativearchitects.slay400.gateway.pipeline.Gateway;
 import ai.generativearchitects.slay400.gateway.pipeline.RuntimeRequest;
 import ai.generativearchitects.slay400.gateway.pipeline.RuntimeResponse;
 import ai.generativearchitects.slay400.http.ProblemDetails;
 import ai.generativearchitects.slay400.http.ProblemKind;
+import io.helidon.common.buffers.DataReader;
 import io.helidon.common.uri.UriQuery;
 import io.helidon.http.DirectHandler;
 import io.helidon.http.Header;
@@ -74,12 +76,16 @@ public final class HelidonServer {
         }
     }
 
-    /** Reads at most {@code max + 1} bytes: one more than the limit is enough to know that the body is over it. */
+    /**
+     * Reads at most {@code max + 1} bytes: one more than the limit is enough to know that the body is over it. A connection that
+     * ends or stops sending before the body is complete is {@link ClientGoneException}: Helidon reports the first as
+     * {@code InsufficientDataAvailableException}, the second, after the read time-out, as an I/O error.
+     */
     private static byte[] readBody(ServerRequest req, int max) {
         try (InputStream in = req.content().inputStream()) {
             return in.readNBytes(max + 1);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        } catch (IOException | UncheckedIOException | DataReader.InsufficientDataAvailableException e) {
+            throw new ClientGoneException();
         }
     }
 

@@ -6,6 +6,7 @@ import ai.generativearchitects.slay400.bundle.Bundle;
 import ai.generativearchitects.slay400.bundle.BundleReader;
 import ai.generativearchitects.slay400.gateway.call.CallOutcome;
 import ai.generativearchitects.slay400.gateway.call.ProgramCaller;
+import ai.generativearchitects.slay400.gateway.pipeline.ClientGoneException;
 import ai.generativearchitects.slay400.gateway.pipeline.CompiledOperation;
 import ai.generativearchitects.slay400.gateway.pipeline.EnvironmentRuntime;
 import ai.generativearchitects.slay400.gateway.pipeline.Gateway;
@@ -165,6 +166,25 @@ class PipelineTest {
         assertProblem(response, 400, "request-invalid");
         assertThat(gateway.maxBodyBytes()).isEqualTo(ReadLimits.defaults().maxBodyBytes());
         assertThat(gateway.limits()).isEqualTo(ReadLimits.defaults());
+    }
+
+    @Test
+    void aClientThatGoesAwayWhileItsBodyIsReadIsOneInfoLineWithoutAStackTrace() {
+        try (LogCapture operator = new LogCapture("slay400.gateway")) {
+            RuntimeResponse response = gateway.handle(request("POST", "/acme/test/items/ABC12345/quantity", Map.of("warehouse", List.of("W01")),
+                    Map.of("X-Channel", List.of("WEB"), "X-Correlation-Id", List.of("gone-1")), Optional.of("application/json"), () -> {
+                        throw new ClientGoneException();
+                    }));
+            assertProblem(response, 400, "request-invalid");
+            assertThat(operator.lines()).hasSize(1);
+            LogCapture.Line line = operator.lines().get(0);
+            assertThat(line.level()).isEqualTo(java.util.logging.Level.INFO);
+            assertThat(line.thrown()).isNull();
+            assertThat(line.message()).isEqualTo("The client went away while its body was read, correlation id gone-1");
+        }
+        assertThat(log).hasSize(1);
+        assertThat(log.get(0)).contains("\"operation\":\"itemqty\"").contains("\"status\":400").contains("\"problems\":[\"client-gone\"]");
+        assertThat(new ClientGoneException().getStackTrace()).isEmpty();
     }
 
     @Test
