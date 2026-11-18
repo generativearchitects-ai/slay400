@@ -10,8 +10,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Takes the host, the user, the password and the libraries of an environment out of text that came from the IBM i, such as the
- * first-level text of a message, before it reaches the operator's log: the code never prints them (kickoff 03).
+ * Takes the host, the user and the libraries of an environment out of text that came from the IBM i, such as the first-level
+ * text of a message, before it reaches the operator's log: the code never prints them (kickoff 03). The password is not kept
+ * here: a message of the system does not carry it (kickoff 04).
  */
 final class Redactor {
 
@@ -19,15 +20,8 @@ final class Redactor {
     private final List<Map.Entry<Pattern, String>> replacements = new ArrayList<>();
 
     Redactor(IbmiSettings settings) {
+        // Not the password: a message of the system does not carry it, and the cleared array of Credentials stays its only copy.
         Map<String, String> words = new LinkedHashMap<>();
-        char[] password = settings.credentials().password();
-        try {
-            if (password.length > 0) {
-                words.put(new String(password), "<password>");
-            }
-        } finally {
-            java.util.Arrays.fill(password, '\0');
-        }
         words.put(settings.host(), "<host>");
         words.put(settings.credentials().user(), "<user>");
         settings.libraryList().forEach(library -> words.putIfAbsent(library, "<library>"));
@@ -36,7 +30,7 @@ final class Redactor {
                         Pattern.CASE_INSENSITIVE), e.getValue())));
     }
 
-    /** The text with every occurrence of the host, the user, the password and the libraries replaced. */
+    /** The text with every occurrence of the host, the user and the libraries replaced. */
     String apply(String text) {
         String out = text;
         for (Map.Entry<Pattern, String> replacement : replacements) {
