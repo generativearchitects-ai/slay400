@@ -1,0 +1,9 @@
+program: TSTNONE
+pcml: TSTNONE.pcml
+route: /missing
+method: GET
+version: 1.0.0
+summary: A program that is never created, for the call of a program that does not exist (invented)
+
+parameters:
+  ANYTHING: { direction: response, name: anything }

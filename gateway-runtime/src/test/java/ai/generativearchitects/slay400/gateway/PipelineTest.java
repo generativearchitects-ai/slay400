@@ -6,6 +6,7 @@ import ai.generativearchitects.slay400.bundle.Bundle;
 import ai.generativearchitects.slay400.bundle.BundleReader;
 import ai.generativearchitects.slay400.gateway.call.CallOutcome;
 import ai.generativearchitects.slay400.gateway.call.ProgramCaller;
+import ai.generativearchitects.slay400.gateway.pipeline.ClientGoneException;
 import ai.generativearchitects.slay400.gateway.pipeline.CompiledOperation;
 import ai.generativearchitects.slay400.gateway.pipeline.EnvironmentRuntime;
 import ai.generativearchitects.slay400.gateway.pipeline.Gateway;
@@ -168,6 +169,25 @@ class PipelineTest {
     }
 
     @Test
+    void aClientThatGoesAwayWhileItsBodyIsReadIsOneInfoLineWithoutAStackTrace() {
+        try (LogCapture operator = new LogCapture("slay400.gateway")) {
+            RuntimeResponse response = gateway.handle(request("POST", "/acme/test/items/ABC12345/quantity", Map.of("warehouse", List.of("W01")),
+                    Map.of("X-Channel", List.of("WEB"), "X-Correlation-Id", List.of("gone-1")), Optional.of("application/json"), () -> {
+                        throw new ClientGoneException();
+                    }));
+            assertProblem(response, 400, "request-invalid");
+            assertThat(operator.lines()).hasSize(1);
+            LogCapture.Line line = operator.lines().get(0);
+            assertThat(line.level()).isEqualTo(java.util.logging.Level.INFO);
+            assertThat(line.thrown()).isNull();
+            assertThat(line.message()).isEqualTo("The client went away while its body was read, correlation id gone-1");
+        }
+        assertThat(log).hasSize(1);
+        assertThat(log.get(0)).contains("\"operation\":\"itemqty\"").contains("\"status\":400").contains("\"problems\":[\"client-gone\"]");
+        assertThat(new ClientGoneException().getStackTrace()).isEmpty();
+    }
+
+    @Test
     void aMissingRequiredFieldIsA400() {
         RuntimeResponse response = gateway.handle(request("POST", "/acme/test/items/ABC12345/quantity", Map.of("warehouse", List.of("W01")),
                 Map.of("X-Channel", List.of("WEB")), Optional.of("application/json"), () -> "{}".getBytes(StandardCharsets.UTF_8)));
@@ -289,6 +309,21 @@ class PipelineTest {
         assertThat(text(response)).doesNotContain("secret internal detail").doesNotContain("IllegalState").doesNotContain("\"detail\"");
         assertThat(log).hasSize(1);
         assertThat(log.get(0)).contains("\"status\":500").doesNotContain("secret internal detail");
+    }
+
+    @Test
+    void aRequestRefusedBeforeThePipelineHasAnAccessLineWithoutTenant() {
+        gateway.refused("GET", 431, "c-1", "about:blank");
+        gateway.refused("A\"\n".repeat(20), 400, "c-2", "request-invalid");
+        gateway.refused(null, 400, "c-3", "request-invalid");
+        assertThat(log).hasSize(3);
+        assertThat(log.get(0)).matches("\\{\"time\":\"[^\"]+\",\"method\":\"GET\",\"status\":431,\"durationMs\":0,\"correlationId\":\"c-1\",\"problems\":\\[\"about:blank\"]}");
+        assertThat(log.get(1)).contains("\"method\":\"OTHER\"").contains("\"status\":400").contains("\"problems\":[\"request-invalid\"]").doesNotContain("\\n");
+        assertThat(log.get(2)).contains("\"method\":\"OTHER\"").contains("\"correlationId\":\"c-3\"");
+        Gateway failing = new Gateway(Map.of(), ReadLimits.defaults(), line -> {
+            throw new IllegalStateException("log is down");
+        });
+        failing.refused("GET", 400, "c-4", "request-invalid");
     }
 
     @Test

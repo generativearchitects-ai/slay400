@@ -40,7 +40,8 @@ import org.snakeyaml.engine.v2.schema.CoreSchema;
  *
  * <p>Diagnostic codes: {@code GWY001} the file cannot be read or is not YAML for this tool; {@code GWY002} unknown key;
  * {@code GWY003} wrong type; {@code GWY004} empty section or value; {@code GWY005} missing key; {@code GWY006} invalid value;
- * {@code GWY007} environment variable not set; {@code GWY008} edition limit ({@link EditionLimits}); {@code GWY009} repeated key.
+ * {@code GWY007} environment variable not set; {@code GWY008} edition limit ({@link EditionLimits}); {@code GWY009} repeated key;
+ * {@code GWY015} a credential written in the file instead of a single {@code ${NAME}} placeholder.
  */
 public final class ConfigReader {
 
@@ -51,8 +52,19 @@ public final class ConfigReader {
     private static final Pattern PORT = Pattern.compile("[0-9]{1,5}");
     private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{([A-Za-z_][A-Za-z0-9_]*)}");
     private static final String RESERVED = "health";
+    private static final Set<String> IBMI_KEYS = Set.of("host", "libraryList", "credentials", "tls", "pool", "callTimeoutSeconds");
+    private static final Set<String> ENVIRONMENT_KEYS = Set.of("code", "backend", "host", "libraryList", "credentials", "tls", "pool", "callTimeoutSeconds");
+    private static final Pattern SINGLE_PLACEHOLDER = Pattern.compile("\\$\\{[A-Za-z_][A-Za-z0-9_]*}");
+    private static final Pattern HOST = Pattern.compile("[A-Za-z0-9.:\\-\\[\\]]{1,253}");
+    private static final Pattern LIBRARY = Pattern.compile("[A-Za-z$#@][A-Za-z0-9$#@_.]{0,9}");
+    private static final Pattern WHOLE = Pattern.compile("[0-9]{1,6}");
+    private static final int MAX_LIBRARIES = 250;
+    private static final int MAX_POOL = 64;
+    private static final int MAX_CALL_TIMEOUT_SECONDS = 3600;
     private static final Set<String> CORE_TAGS = Set.of("tag:yaml.org,2002:str", "tag:yaml.org,2002:int", "tag:yaml.org,2002:float",
-            "tag:yaml.org,2002:bool", "tag:yaml.org,2002:null", "tag:yaml.org,2002:map", "tag:yaml.org,2002:seq");
+            "tag:yaml.org,2002:bool", "tag:yaml.org,2002:null", "tag:yaml.org,2002:map", "tag:yaml.org,2002:seq",
+            // The YAML library gives an unquoted ${NAME} this tag of its own; it is read as text, like any placeholder.
+            "!ENV_VARIABLE");
 
     private final Path file;
     private final String shown;
@@ -257,7 +269,7 @@ public final class ConfigReader {
 
     private Optional<EnvironmentConfig> environment(String name, Node node, Node keyNode) {
         checkName(name, "environment", keyNode);
-        Optional<Map<String, Node>> entries = entries(node, Set.of("code", "backend"), "The environment " + safe(name));
+        Optional<Map<String, Node>> entries = entries(node, ENVIRONMENT_KEYS, "The environment " + safe(name));
         if (entries.isEmpty()) {
             return Optional.empty();
         }
@@ -278,16 +290,147 @@ public final class ConfigReader {
                 if (value.get().equals("mock")) {
                     backend = Optional.of(Backend.MOCK);
                 } else if (value.get().equals("ibmi")) {
-                    error("GWY006", "The backend ibmi is not available in this version", at(backendNode));
+                    backend = Optional.of(Backend.IBMI);
                 } else {
-                    error("GWY006", "The backend must be mock", at(backendNode));
+                    error("GWY006", "The backend must be mock or ibmi", at(backendNode));
                 }
             }
         }
-        if (code.isEmpty() || backend.isEmpty()) {
+        Optional<IbmiSettings> ibmi = Optional.empty();
+        if (backend.isPresent() && backend.get() == Backend.IBMI) {
+            ibmi = ibmi(name, entries.get(), keyNode);
+        } else if (backend.isPresent()) {
+            for (Map.Entry<String, Node> entry : entries.get().entrySet()) {
+                if (IBMI_KEYS.contains(entry.getKey())) {
+                    error("GWY002", "The key " + entry.getKey() + " applies to the backend ibmi only", at(keyNode(node, entry.getKey())));
+                }
+            }
+        }
+        if (code.isEmpty() || backend.isEmpty() || (backend.get() == Backend.IBMI && ibmi.isEmpty())) {
             return Optional.empty();
         }
-        return Optional.of(new EnvironmentConfig(name, code.get(), backend.get(), at(keyNode)));
+        return Optional.of(new EnvironmentConfig(name, code.get(), backend.get(), ibmi, at(keyNode)));
+    }
+
+    /** The settings of an ibmi environment. Messages name keys and positions, never a value. */
+    private Optional<IbmiSettings> ibmi(String name, Map<String, Node> entries, Node keyNode) {
+        int before = problems.size();
+        Optional<String> host = Optional.empty();
+        Node hostNode = entries.get("host");
+        if (hostNode == null) {
+            error("GWY005", "The environment " + safe(name) + " has no key host", at(keyNode));
+        } else {
+            host = text(hostNode, "host").filter(h -> {
+                boolean ok = HOST.matcher(h).matches();
+                if (!ok) {
+                    error("GWY006", "host must be a host name or an address, without white space, scheme, path or port", at(hostNode));
+                }
+                return ok;
+            });
+        }
+        List<String> libraries = new ArrayList<>();
+        Node librariesNode = entries.get("libraryList");
+        if (librariesNode == null) {
+            error("GWY005", "The environment " + safe(name) + " has no key libraryList", at(keyNode));
+        } else if (!(librariesNode instanceof SequenceNode sequence)) {
+            error("GWY003", "libraryList must be a list of library names", at(librariesNode));
+        } else if (sequence.getValue().isEmpty()) {
+            error("GWY004", "The list libraryList of the environment " + safe(name) + " is empty", at(librariesNode));
+        } else if (sequence.getValue().size() > MAX_LIBRARIES) {
+            error("GWY006", "libraryList has more than " + MAX_LIBRARIES + " libraries", at(librariesNode));
+        } else {
+            for (Node item : sequence.getValue()) {
+                text(item, "a library name").ifPresent(library -> {
+                    if (LIBRARY.matcher(library).matches()) {
+                        libraries.add(library.toUpperCase(java.util.Locale.ROOT));
+                    } else {
+                        error("GWY006", "A library name has 1 to 10 characters: letters, digits, $, #, @, _ and ., and does not start with a digit, _ or .",
+                                at(item));
+                    }
+                });
+            }
+        }
+        Optional<Credentials> credentials = credentials(name, entries.get("credentials"), keyNode);
+        boolean tls = true;
+        Node tlsNode = entries.get("tls");
+        if (tlsNode != null) {
+            Optional<String> value = text(tlsNode, "tls");
+            if (value.isPresent()) {
+                if (value.get().equals("true") || value.get().equals("false")) {
+                    tls = Boolean.parseBoolean(value.get());
+                } else {
+                    error("GWY006", "tls must be true or false", at(tlsNode));
+                }
+            }
+        }
+        int maxConnections = IbmiSettings.DEFAULT_MAX_CONNECTIONS;
+        Node poolNode = entries.get("pool");
+        if (poolNode != null) {
+            Optional<Map<String, Node>> pool = entries(poolNode, Set.of("maxConnections"), "The section pool");
+            if (pool.isPresent() && pool.get().get("maxConnections") != null) {
+                maxConnections = whole(pool.get().get("maxConnections"), "pool.maxConnections", 1, MAX_POOL).orElse(maxConnections);
+            }
+        }
+        int callTimeout = IbmiSettings.DEFAULT_CALL_TIMEOUT_SECONDS;
+        Node timeoutNode = entries.get("callTimeoutSeconds");
+        if (timeoutNode != null) {
+            callTimeout = whole(timeoutNode, "callTimeoutSeconds", 1, MAX_CALL_TIMEOUT_SECONDS).orElse(callTimeout);
+        }
+        if (problems.size() > before || host.isEmpty() || credentials.isEmpty()) {
+            credentials.ifPresent(Credentials::clear);
+            return Optional.empty();
+        }
+        return Optional.of(new IbmiSettings(host.get(), libraries, credentials.get(), tls, maxConnections, callTimeout));
+    }
+
+    /**
+     * The credentials of an ibmi environment: {@code user} and {@code password}, each exactly one {@code ${NAME}} placeholder. A
+     * literal in the file stops the start (GWY015); neither the literal nor the resolved value is ever put in a message.
+     */
+    private Optional<Credentials> credentials(String name, Node node, Node keyNode) {
+        if (node == null) {
+            error("GWY005", "The environment " + safe(name) + " has no key credentials", at(keyNode));
+            return Optional.empty();
+        }
+        Optional<Map<String, Node>> entries = entries(node, Set.of("user", "password"), "The section credentials");
+        if (entries.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<String> user = credential(entries.get().get("user"), "user", node);
+        Optional<String> password = credential(entries.get().get("password"), "password", node);
+        if (user.isEmpty() || password.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(new Credentials(user.get(), password.get().toCharArray()));
+    }
+
+    private Optional<String> credential(Node node, String key, Node section) {
+        if (node == null) {
+            error("GWY005", "The section credentials has no key " + key, at(section));
+            return Optional.empty();
+        }
+        if (!(node instanceof ScalarNode scalar) || !SINGLE_PLACEHOLDER.matcher(scalar.getValue()).matches()) {
+            error("GWY015", "credentials." + key + " must be a single ${NAME} placeholder for an environment variable; a value written in the "
+                    + "configuration file is not accepted", at(node));
+            return Optional.empty();
+        }
+        return text(node, "credentials." + key);
+    }
+
+    /** A whole number from {@code min} to {@code max}. */
+    private Optional<Integer> whole(Node node, String what, int min, int max) {
+        Optional<String> text = text(node, what);
+        if (text.isEmpty()) {
+            return Optional.empty();
+        }
+        if (WHOLE.matcher(text.get()).matches()) {
+            int value = Integer.parseInt(text.get());
+            if (value >= min && value <= max) {
+                return Optional.of(value);
+            }
+        }
+        error("GWY006", what + " must be a whole number from " + min + " to " + max, at(node));
+        return Optional.empty();
     }
 
     private void checkName(String name, String what, Node keyNode) {

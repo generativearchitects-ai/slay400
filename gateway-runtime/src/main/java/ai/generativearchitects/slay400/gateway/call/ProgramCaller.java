@@ -9,7 +9,7 @@ import java.util.List;
  * implementation is chosen by the {@code backend} of the environment; nothing above this interface knows which one runs, and
  * no JT400 type may appear in it.
  */
-public interface ProgramCaller {
+public interface ProgramCaller extends AutoCloseable {
 
     /**
      * Calls the program. An implementation reports every failure as an outcome and does not throw for the data it is given.
@@ -19,4 +19,9 @@ public interface ProgramCaller {
      * @param input     one value per parameter, in PCML order
      */
     CallOutcome call(CallContext context, ApiOperation operation, List<WireValue> input);
+
+    /** Releases what the implementation holds, such as connections. Called once, when the gateway stops; never throws. */
+    @Override
+    default void close() {
+    }
 }

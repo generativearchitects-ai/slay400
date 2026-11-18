@@ -1,0 +1,18 @@
+program: TSTARRAY
+pcml: TSTARRAY.pcml
+route: /rows
+method: GET
+version: 1.0.0
+summary: Returns the number of rows asked for, at most ten (invented test program)
+
+parameters:
+  WANTED: { name: wanted, type: integer, required: true }
+  COUNT: { direction: internal }
+  ROWS:
+    direction: response
+    name: rows
+    trim: { countField: COUNT }
+    fields:
+      ID: { name: id, type: integer }
+      LABEL: { name: label }
+      AMOUNT: { name: amount, type: decimal }

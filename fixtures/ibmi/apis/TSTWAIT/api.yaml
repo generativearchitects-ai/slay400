@@ -1,0 +1,10 @@
+program: TSTWAIT
+pcml: TSTWAIT.pcml
+route: /wait
+method: GET
+version: 1.0.0
+summary: Waits the given number of seconds, for the time-out (invented test program)
+
+parameters:
+  SECONDS: { name: seconds, type: integer, required: true }
+  DONE: { direction: response, name: done }

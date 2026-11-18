@@ -31,10 +31,14 @@ final class ServerFixture implements AutoCloseable {
     private final WebServer server;
 
     ServerFixture(Path dir) {
+        this(dir, ServerLimits.DEFAULTS);
+    }
+
+    ServerFixture(Path dir, ServerLimits limits) {
         this.port = freePort();
         String config = Fixtures.SHOP_CONFIG.replace("tenants:", "server:\n  port: " + port + "\ntenants:");
         StartResult result = Fixtures.start(dir, config, Map.of(), log);
-        server = HelidonServer.start(result.started().orElseThrow(() -> new IllegalStateException(result.diagnostics().toString())));
+        server = HelidonServer.start(result.started().orElseThrow(() -> new IllegalStateException(result.diagnostics().toString())), limits);
         // The server's own access lines go to the same list as the pipeline's.
     }
 

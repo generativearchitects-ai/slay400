@@ -9,7 +9,8 @@ import java.util.function.Supplier;
 /**
  * A request as the pipeline sees it, with no HTTP type. The path is the one the client sent, percent-encoded and without the
  * query string. The body is read only when the pipeline reaches the step that needs it, and a supplier must return at most
- * {@code Gateway.maxBodyBytes() + 1} bytes.
+ * {@code Gateway.maxBodyBytes() + 1} bytes. When the client goes away while the body is read, the supplier throws
+ * {@link ClientGoneException}.
  *
  * @param method      the method as sent
  * @param rawPath     the path as sent, starting with {@code /}

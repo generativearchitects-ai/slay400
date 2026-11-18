@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pcml version="6.0">
+  <struct name="ITEM">
+    <data name="CODE" type="char" length="6" usage="inherit"/>
+    <data name="QUANTITY" type="packed" length="5" precision="0" usage="inherit"/>
+    <data name="PRICE" type="zoned" length="7" precision="2" usage="inherit"/>
+    <data name="STATUS" type="char" length="1" usage="inherit"/>
+  </struct>
+  <program name="TSTSTRUCT" path="/QSYS.LIB/OWNERLIB.LIB/TSTSTRUCT.PGM">
+    <data name="ITEM" type="struct" struct="ITEM" usage="inputoutput"/>
+  </program>
+</pcml>
