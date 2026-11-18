@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pcml version="6.0">
+  <struct name="LINES">
+    <data name="SKU" type="char" length="8" usage="inherit"/>
+    <data name="QTY" type="int" length="4" precision="31" usage="inherit"/>
+  </struct>
+  <struct name="ORDER">
+    <data name="TOTAL" type="packed" length="9" precision="2" usage="inherit"/>
+    <data name="LINES" type="struct" struct="LINES" count="3" usage="inherit"/>
+  </struct>
+  <program name="TSTNESTED" path="/QSYS.LIB/OWNERLIB.LIB/TSTNESTED.PGM">
+    <data name="KEY" type="char" length="5" usage="input"/>
+    <data name="ORDER" type="struct" struct="ORDER" usage="inputoutput"/>
+    <data name="ERRFLAG" type="char" length="2" usage="inputoutput"/>
+    <data name="ERRCODE" type="char" length="7" usage="inputoutput"/>
+    <data name="ERRTEXT" type="char" length="40" usage="inputoutput"/>
+  </program>
+</pcml>

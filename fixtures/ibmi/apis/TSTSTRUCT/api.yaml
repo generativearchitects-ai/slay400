@@ -1,0 +1,16 @@
+program: TSTSTRUCT
+pcml: TSTSTRUCT.pcml
+route: /items
+method: POST
+version: 1.0.0
+summary: Updates one item, a struct in and out (invented test program)
+
+parameters:
+  ITEM:
+    direction: both
+    name: item
+    fields:
+      CODE: { name: code }
+      QUANTITY: { name: quantity, type: integer }
+      PRICE: { name: price, type: decimal }
+      STATUS: { name: status }

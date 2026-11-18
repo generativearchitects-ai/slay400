@@ -1,0 +1,16 @@
+program: TSTSCALAR
+pcml: TSTSCALAR.pcml
+route: /scalars
+method: POST
+version: 1.0.0
+summary: Echoes one value of each scalar kind (invented test program)
+
+parameters:
+  INTEXT: { name: text }
+  INPACKED: { name: packed, type: decimal }
+  INZONED: { name: zoned, type: integer }
+  ININT: { name: whole, type: integer }
+  OUTTEXT: { direction: response, name: echo }
+  OUTPACKED: { direction: response, name: doubled, type: decimal }
+  OUTZONED: { direction: response, name: plusOne, type: integer }
+  OUTINT: { direction: response, name: tripled, type: integer }
