@@ -3,9 +3,12 @@ package ai.generativearchitects.slay400.gateway.load;
 import ai.generativearchitects.slay400.bundle.Bundle;
 import ai.generativearchitects.slay400.bundle.BundleReadResult;
 import ai.generativearchitects.slay400.bundle.BundleReader;
+import ai.generativearchitects.slay400.gateway.call.BackendProvider;
+import ai.generativearchitects.slay400.gateway.call.BackendStart;
 import ai.generativearchitects.slay400.gateway.call.MockCaller;
 import ai.generativearchitects.slay400.gateway.call.ProgramCaller;
 import ai.generativearchitects.slay400.gateway.config.ConfigReader;
+import ai.generativearchitects.slay400.gateway.config.Backend;
 import ai.generativearchitects.slay400.gateway.config.ConfigResult;
 import ai.generativearchitects.slay400.gateway.config.EnvironmentConfig;
 import ai.generativearchitects.slay400.gateway.config.GatewayConfig;
@@ -35,6 +38,7 @@ import ai.generativearchitects.slay400.pcml.model.SourceLocation;
 import java.io.ByteArrayInputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -53,7 +57,11 @@ import java.util.function.Function;
  *   <li>for every operation, {@code OperationCodec.check} must be empty ({@code GWY011}) and every injected parameter must
  *       have a value in the environment's configuration that fits its field ({@code GWY012});</li>
  *   <li>one route table per tenant, where the same method and route twice is an error ({@code GWY013}); every mock must be
- *       valid ({@code GWY014}).</li>
+ *       valid ({@code GWY014});</li>
+ *   <li>every environment's backend is available in this distribution ({@code GWY016}) and can call every operation of its
+ *       tenant ({@code GWY017});</li>
+ *   <li>only then, every backend other than the mock is opened, with its connection check unless it is turned off
+ *       ({@code GWY018}). When one cannot be opened, those already opened are closed again.</li>
  * </ol>
  *
  * <p>Nothing is thrown for the content of a file, and no message contains the value of an environment variable.
@@ -67,39 +75,88 @@ public final class GatewayLoader {
     }
 
     /**
-     * Starts the gateway from a configuration file.
+     * Starts the gateway from a configuration file, with the mock backend only.
      *
      * @param configFile  the configuration file
      * @param environment the value of an environment variable, or {@code null} when it is not set
      * @param accessLog   receives the JSON line of every request
      */
     public static StartResult load(Path configFile, Function<String, String> environment, Consumer<String> accessLog) {
+        return load(configFile, environment, accessLog, StartOptions.mockOnly());
+    }
+
+    /**
+     * Starts the gateway from a configuration file.
+     *
+     * @param configFile  the configuration file
+     * @param environment the value of an environment variable, or {@code null} when it is not set
+     * @param accessLog   receives the JSON line of every request
+     * @param options     the backends available and whether they are checked by connecting
+     */
+    public static StartResult load(Path configFile, Function<String, String> environment, Consumer<String> accessLog, StartOptions options) {
         ConfigResult read = ConfigReader.read(configFile, environment);
         if (read.config().isEmpty()) {
             return new StartResult(Optional.empty(), read.diagnostics());
         }
         GatewayConfig config = read.config().get();
+        Map<Backend, BackendProvider> providers = new EnumMap<>(Backend.class);
+        options.providers().forEach(provider -> providers.put(provider.backend(), provider));
         List<Diagnostic> found = new ArrayList<>();
+        List<TenantDraft> drafts = new ArrayList<>();
+        ReadLimits limits = ReadLimits.defaults();
+        for (TenantConfig tenant : config.tenants()) {
+            tenant(tenant, limits, providers, found).ifPresent(drafts::add);
+        }
+        if (errors(found) > 0) {
+            return new StartResult(Optional.empty(), found);
+        }
+        // Step 6: open the backends, now that nothing else stops the start.
+        List<ProgramCaller> opened = new ArrayList<>();
         Map<String, TenantRuntime> tenants = new LinkedHashMap<>();
         int environments = 0;
         int operations = 0;
-        ReadLimits limits = ReadLimits.defaults();
-        for (TenantConfig tenant : config.tenants()) {
-            Optional<TenantRuntime> built = tenant(tenant, limits, found);
-            if (built.isPresent()) {
-                tenants.put(tenant.name(), built.get());
-                environments += tenant.environments().size();
-                operations += built.get().operations().size();
+        for (TenantDraft draft : drafts) {
+            Map<String, EnvironmentRuntime> runtimes = new LinkedHashMap<>();
+            for (EnvironmentDraft environmentDraft : draft.environments()) {
+                EnvironmentConfig environmentConfig = environmentDraft.config();
+                ProgramCaller caller;
+                if (environmentConfig.backend() == Backend.MOCK) {
+                    caller = draft.mock();
+                } else {
+                    BackendStart start = providers.get(environmentConfig.backend()).start(draft.name(), environmentConfig, draft.operations(), options.connectCheck());
+                    if (start.caller().isEmpty()) {
+                        start.problems().forEach(problem -> found.add(error("GWY018", "The backend " + backendName(environmentConfig.backend())
+                                + " of the environment " + environmentConfig.name() + " cannot be opened: " + problem, environmentConfig.at())));
+                        opened.forEach(ProgramCaller::close);
+                        return new StartResult(Optional.empty(), found);
+                    }
+                    caller = start.caller().get();
+                    opened.add(caller);
+                }
+                runtimes.put(environmentConfig.name(), new EnvironmentRuntime(environmentConfig.name(), caller, environmentDraft.injected()));
             }
-        }
-        if (found.stream().anyMatch(d -> d.severity() == Severity.ERROR)) {
-            return new StartResult(Optional.empty(), found);
+            tenants.put(draft.name(), new TenantRuntime(draft.name(), draft.routes(), draft.compiled(), runtimes));
+            environments += runtimes.size();
+            operations += draft.compiled().size();
         }
         Gateway gateway = new Gateway(tenants, limits, accessLog);
-        return new StartResult(Optional.of(new Started(config, gateway, environments, operations)), found);
+        return new StartResult(Optional.of(new Started(config, gateway, environments, operations, opened)), found);
     }
 
-    private static Optional<TenantRuntime> tenant(TenantConfig tenant, ReadLimits limits, List<Diagnostic> found) {
+    /** A tenant that passed the checks, before its backends are opened. */
+    private record TenantDraft(String name, RouteTable routes, Map<ApiOperation, CompiledOperation> compiled, List<ApiOperation> operations,
+                               ProgramCaller mock, List<EnvironmentDraft> environments) {
+    }
+
+    /** An environment that passed the checks, with the values it injects. */
+    private record EnvironmentDraft(EnvironmentConfig config, Map<ApiOperation, Map<String, String>> injected) {
+    }
+
+    private static String backendName(Backend backend) {
+        return backend.name().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    private static Optional<TenantDraft> tenant(TenantConfig tenant, ReadLimits limits, Map<Backend, BackendProvider> providers, List<Diagnostic> found) {
         int errorsBefore = errors(found);
         // Step 2: bundles.
         List<Bundle> bundles = new ArrayList<>();
@@ -154,23 +211,35 @@ public final class GatewayLoader {
                         + tenant.name() + ": " + other.id() + " and " + operation.id(), operation.source()));
             }
         }
-        Map<String, EnvironmentRuntime> environments = new LinkedHashMap<>();
-        ProgramCaller mock = new MockCaller(mocks);
+        List<EnvironmentDraft> environments = new ArrayList<>();
+        Map<Backend, Boolean> checked = new EnumMap<>(Backend.class);
         for (EnvironmentConfig environment : tenant.environments()) {
             Map<ApiOperation, Map<String, String>> injected = new IdentityHashMap<>();
             for (ApiOperation operation : allOperations) {
                 injected.put(operation, injected(operation, environment, compiled.get(operation), found));
             }
-            ProgramCaller caller = switch (environment.backend()) {
-                case MOCK -> mock;
-            };
-            environments.put(environment.name(), new EnvironmentRuntime(environment.name(), caller, injected));
+            if (environment.backend() != Backend.MOCK) {
+                BackendProvider provider = providers.get(environment.backend());
+                if (provider == null) {
+                    found.add(error("GWY016", "The backend " + backendName(environment.backend()) + " of the environment " + environment.name()
+                            + " is not available in this distribution", environment.at()));
+                } else if (checked.putIfAbsent(environment.backend(), true) == null) {
+                    // Once per backend and tenant: the operations are the same for every environment of the tenant.
+                    for (ApiOperation operation : allOperations) {
+                        for (String reason : provider.unsupported(operation)) {
+                            found.add(error("GWY017", "The operation " + operation.id() + " cannot be called by the backend " + backendName(environment.backend())
+                                    + ": " + reason, operation.source()));
+                        }
+                    }
+                }
+            }
+            environments.add(new EnvironmentDraft(environment, injected));
         }
         if (errors(found) > errorsBefore) {
             return Optional.empty();
         }
         ApiRepositoryModel model = new ApiRepositoryModel(bundles.get(0).model().defaults(), allOperations, allApis);
-        return Optional.of(new TenantRuntime(tenant.name(), RouteTable.of(model), compiled, environments));
+        return Optional.of(new TenantDraft(tenant.name(), RouteTable.of(model), compiled, allOperations, new MockCaller(mocks), environments));
     }
 
     private static int errors(List<Diagnostic> found) {

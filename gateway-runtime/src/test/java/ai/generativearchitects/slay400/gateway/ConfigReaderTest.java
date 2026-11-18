@@ -175,20 +175,6 @@ class ConfigReaderTest {
     }
 
     @Test
-    void ibmiIsRecognisedAndRefused() {
-        ConfigResult result = read("""
-                tenants:
-                  acme:
-                    bundles: [./a.rpgapi]
-                    environments:
-                      test: { code: T0001, backend: ibmi }
-                """);
-        assertThat(result.diagnostics()).hasSize(1);
-        assertThat(result.diagnostics().get(0).code()).isEqualTo("GWY006");
-        assertThat(result.diagnostics().get(0).message()).isEqualTo("The backend ibmi is not available in this version");
-    }
-
-    @Test
     void moreThanOneTenantIsAnEditionLimitAtTheSecondTenant() {
         ConfigResult result = read("""
                 tenants:
