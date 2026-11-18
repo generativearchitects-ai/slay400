@@ -312,6 +312,21 @@ class PipelineTest {
     }
 
     @Test
+    void aRequestRefusedBeforeThePipelineHasAnAccessLineWithoutTenant() {
+        gateway.refused("GET", 431, "c-1", "about:blank");
+        gateway.refused("A\"\n".repeat(20), 400, "c-2", "request-invalid");
+        gateway.refused(null, 400, "c-3", "request-invalid");
+        assertThat(log).hasSize(3);
+        assertThat(log.get(0)).matches("\\{\"time\":\"[^\"]+\",\"method\":\"GET\",\"status\":431,\"durationMs\":0,\"correlationId\":\"c-1\",\"problems\":\\[\"about:blank\"]}");
+        assertThat(log.get(1)).contains("\"method\":\"OTHER\"").contains("\"status\":400").contains("\"problems\":[\"request-invalid\"]").doesNotContain("\\n");
+        assertThat(log.get(2)).contains("\"method\":\"OTHER\"").contains("\"correlationId\":\"c-3\"");
+        Gateway failing = new Gateway(Map.of(), ReadLimits.defaults(), line -> {
+            throw new IllegalStateException("log is down");
+        });
+        failing.refused("GET", 400, "c-4", "request-invalid");
+    }
+
+    @Test
     void aFailingAccessLogDoesNotFailTheRequest() {
         Gateway stubbed = new Gateway(Map.of(), ReadLimits.defaults(), line -> {
             throw new IllegalStateException("log is down");

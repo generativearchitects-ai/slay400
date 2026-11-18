@@ -45,7 +45,7 @@ public final class HelidonServer {
         return WebServer.builder()
                 .host(started.config().host())
                 .port(started.config().port())
-                .directHandlers(directHandlers())
+                .directHandlers(directHandlers(gateway))
                 .routing(routing -> routing.any((req, res) -> handle(gateway, req, res)))
                 .build()
                 .start();
@@ -89,8 +89,8 @@ public final class HelidonServer {
         }
     }
 
-    /** Problem bodies for what Helidon answers by itself. */
-    private static DirectHandlers directHandlers() {
+    /** Problem bodies, and an access line without tenant, for what Helidon answers by itself. */
+    private static DirectHandlers directHandlers(Gateway gateway) {
         DirectHandler handler = (request, type, status, responseHeaders, message) -> {
             int code = status.code() >= 400 && status.code() < 600 ? status.code() : 500;
             ProblemDetails problem = ProblemKind.forStatus(code).map(kind -> ProblemDetails.of(kind, ""))
@@ -100,6 +100,7 @@ public final class HelidonServer {
             responseHeaders.set(HeaderNames.create("X-Content-Type-Options"), "nosniff");
             responseHeaders.set(HeaderNames.CACHE_CONTROL, "no-store");
             responseHeaders.set(HeaderNames.create(Gateway.CORRELATION_HEADER), correlationId);
+            gateway.refused(request.method(), problem.status(), correlationId, slug(problem.type()));
             return DirectHandler.TransportResponse.builder()
                     .status(Status.create(problem.status()))
                     .headers(responseHeaders)
@@ -112,5 +113,10 @@ public final class HelidonServer {
             builder.addHandler(type, handler);
         }
         return builder.build();
+    }
+
+    /** The last segment of a problem type, or the type itself when it is {@code about:blank}. */
+    static String slug(String type) {
+        return type.substring(type.lastIndexOf('/') + 1);
     }
 }

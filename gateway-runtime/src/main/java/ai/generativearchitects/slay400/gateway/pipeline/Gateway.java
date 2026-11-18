@@ -98,14 +98,37 @@ public final class Gateway {
             response = problem(ProblemDetails.of(ProblemKind.INTERNAL_ERROR, ""), trace, correlationId, Map.of());
         }
         long millis = (System.nanoTime() - started) / 1_000_000;
+        access(new AccessRecord(time, Optional.ofNullable(trace.tenant), Optional.ofNullable(trace.environment),
+                Optional.ofNullable(trace.operationId), method(request.method()), Optional.ofNullable(trace.route), response.status(), millis,
+                correlationId, trace.problems));
+        return response;
+    }
+
+    /**
+     * Writes the access line of a request that the server refused before it reached the pipeline (a malformed request line,
+     * headers over the limit, a body declared over the server's limit). The line has no tenant, environment, operation or
+     * route, since none was resolved, and a duration of 0, since the server does not say when the request began. Never throws.
+     *
+     * @param method        the method as the server read it, possibly empty; logged only if the gateway serves it
+     * @param status        the status of the answer
+     * @param correlationId the correlation id of the answer
+     * @param problem       the slug of the problem type of the answer, or {@code about:blank}
+     */
+    public void refused(String method, int status, String correlationId, String problem) {
         try {
-            accessLog.accept(new AccessRecord(time, Optional.ofNullable(trace.tenant), Optional.ofNullable(trace.environment),
-                    Optional.ofNullable(trace.operationId), method(request.method()), Optional.ofNullable(trace.route), response.status(), millis,
-                    correlationId, trace.problems).toJson());
+            access(new AccessRecord(Instant.now(), Optional.empty(), Optional.empty(), Optional.empty(), method(method == null ? "" : method),
+                    Optional.empty(), status, 0, correlationId, List.of(problem)));
         } catch (RuntimeException e) {
             LOG.log(System.Logger.Level.ERROR, "The access log failed", e);
         }
-        return response;
+    }
+
+    private void access(AccessRecord record) {
+        try {
+            accessLog.accept(record.toJson());
+        } catch (RuntimeException e) {
+            LOG.log(System.Logger.Level.ERROR, "The access log failed", e);
+        }
     }
 
     private static final class Trace {
