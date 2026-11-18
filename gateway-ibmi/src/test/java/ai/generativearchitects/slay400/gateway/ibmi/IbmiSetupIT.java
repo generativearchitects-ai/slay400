@@ -22,8 +22,9 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
  * The setup tool of the {@code ibmi} profile, run by the workflow before the other tests. It copies the sources of
  * {@code ibmi/programs/} to a folder in the owner's home folder, compiles each into the owner's library with the PCML written
  * to a stream file, and brings the PCML files back to {@code target/ibmi/pcml/}, with the library replaced by
- * {@value IbmiSystem#LIBRARY_PLACEHOLDER}. It compares each with the PCML the repository keeps under {@code fixtures/ibmi};
- * a difference is a finding, written to {@code target/ibmi/pcml-differences.md}, not a failure.
+ * {@value IbmiSystem#LIBRARY_PLACEHOLDER}. It compares each with the PCML the repository keeps under {@code fixtures/ibmi},
+ * which is the compiler's own output (decision 119): a difference, or a program without a fixture, fails the run, since it
+ * means that a source or the compiler changed. The differences are written to {@code target/ibmi/pcml-differences.md}.
  *
  * <p>Idempotent: sources and PCML are overwritten, programs replaced. It leaves nothing outside that library and that folder:
  * the compiler writes no listing ({@code OUTPUT(*NONE)}). One connection, five compiles.
@@ -50,8 +51,9 @@ class IbmiSetupIT {
             if (!folder.exists() && !folder.mkdirs()) {
                 failures.add("the folder for the sources could not be created in the home folder");
             }
+            boolean compileFailed = false;
             for (String program : PROGRAMS) {
-                if (!failures.isEmpty()) {
+                if (compileFailed) {
                     break;
                 }
                 String source = Files.readString(IbmiSystem.root().resolve("ibmi/programs/" + program + ".rpgle"));
@@ -73,6 +75,7 @@ class IbmiSetupIT {
                 System.out.println(IbmiSystem.redact(program + ": " + (compiled ? "compiled" : "not compiled") + (messages.isEmpty() ? "" : ": " + messages)));
                 if (!compiled) {
                     failures.add(IbmiSystem.redact(program + " did not compile: " + messages));
+                    compileFailed = true;
                     continue;
                 }
                 IFSFile pcmlFile = new IFSFile(system, pcmlPath);
@@ -84,8 +87,19 @@ class IbmiSetupIT {
                 String pcml = ccsid == 1208 ? new String(bytes, StandardCharsets.UTF_8) : new CharConverter(ccsid, system).byteArrayToString(bytes);
                 String redacted = IbmiSystem.redactPcml(pcml);
                 Files.writeString(out.resolve(program + ".pcml"), redacted);
-                String fixture = Files.readString(IbmiSystem.root().resolve("fixtures/ibmi/apis/" + program + "/" + program + ".pcml"));
-                List<String> differences = PcmlComparison.differences(fixture, redacted);
+                Path fixtureFile = IbmiSystem.root().resolve("fixtures/ibmi/apis/" + program + "/" + program + ".pcml");
+                if (!Files.exists(fixtureFile)) {
+                    failures.add(program + " has no fixture yet: commit pcml/" + program + ".pcml of the artifact as " + IbmiSystem.root().relativize(fixtureFile));
+                    report.add("## " + program);
+                    report.add("");
+                    report.add("No fixture yet.");
+                    report.add("");
+                    continue;
+                }
+                List<String> differences = PcmlComparison.differences(Files.readString(fixtureFile), redacted);
+                if (!differences.isEmpty()) {
+                    failures.add(program + " differs from its fixture in " + differences.size() + " places: a source or the compiler changed (see pcml-differences.md)");
+                }
                 report.add("## " + program);
                 report.add("");
                 report.add("Stream file CCSID: " + ccsid + ".");
