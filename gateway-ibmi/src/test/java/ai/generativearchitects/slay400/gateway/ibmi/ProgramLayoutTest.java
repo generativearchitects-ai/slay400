@@ -51,7 +51,8 @@ class ProgramLayoutTest {
 
     @ParameterizedTest
     @CsvSource({"tstscalar,TSTSCALAR,8", "tststruct,TSTSTRUCT,1", "tstarray,TSTARRAY,3", "tstnested,TSTNESTED,5", "tstwait,TSTWAIT,2", "tstnone,TSTNONE,1",
-            "tstsigns,TSTSIGNS,16", "tstvarchar,TSTVARCHAR,13", "tstfloat,TSTFLOAT,6", "tstdates,TSTDATES,13", "tstcounts,TSTCOUNTS,4"})
+            "tstsigns,TSTSIGNS,16", "tstvarchar,TSTVARCHAR,13", "tstfloat,TSTFLOAT,6", "tstdates,TSTDATES,13", "tstcounts,TSTCOUNTS,4",
+            "tstmidngt,TSTMIDNGT,22", "tstformat,TSTFORMAT,10", "tststmp12,TSTSTMP12,3"})
     void theProgramIsCalledThroughTheLibraryListNotTheLibraryOfThePcml(String id, String program, int parameters) {
         ProgramLayout layout = ProgramLayout.of(operations.get(id));
         assertThat(operations.get(id).program().path()).hasValue("/QSYS.LIB/OWNERLIB.LIB/" + program + ".PGM");
@@ -207,22 +208,39 @@ class ProgramLayoutTest {
 
     @Test
     void formatsAndSeparatorsNoRealSystemHasReturnedAreRefused() {
-        assertThat(unsupported("TDUN", "", CHAR_OUT + "    <data name=\"D\" type=\"date\" dateformat=\"DMY\" dateseparator=\"slash\" usage=\"output\"/>\n"
-                + "    <data name=\"E\" type=\"date\" dateformat=\"ISO\" dateseparator=\"comma\" usage=\"output\"/>\n"
-                + "    <data name=\"T\" type=\"time\" timeformat=\"JIS\" timeseparator=\"colon\" usage=\"output\"/>\n"
+        assertThat(unsupported("TDUN", "", CHAR_OUT + "    <data name=\"D\" type=\"date\" dateformat=\"LONGJUL\" dateseparator=\"slash\" usage=\"output\"/>\n"
+                + "    <data name=\"E\" type=\"date\" dateformat=\"ISO\" dateseparator=\"ampersand\" usage=\"output\"/>\n"
+                + "    <data name=\"F\" type=\"date\" dateformat=\"XYZ\" dateseparator=\"slash\" usage=\"output\"/>\n"
                 + "    <data name=\"U\" type=\"time\" timeformat=\"HMS\" timeseparator=\"space\" usage=\"output\"/>\n", "")).containsExactly(
-                "D: the date format DMY with the separator slash has not been returned by a real system yet (decision 121)",
-                "E: the date format ISO with the separator comma has not been returned by a real system yet (decision 121)",
-                "T: the time format JIS with the separator colon has not been returned by a real system yet (decision 121)",
+                "D: the date format LONGJUL was refused by the RPG compiler as a parameter, so no real system has returned it",
+                "E: the date format ISO with the separator ampersand has not been returned by a real system yet (decision 121)",
+                "F: the date format XYZ with the separator slash has not been returned by a real system yet (decision 121)",
                 "U: the time format HMS with the separator space has not been returned by a real system yet (decision 121)");
+        for (String refused : List.of("CYMD", "CMDY", "CDMY", "cymd")) {
+            assertThat(unsupported("TR" + refused.toUpperCase() + (refused.equals("cymd") ? "L" : ""), "", "    <data name=\"D\" type=\"date\" dateformat=\"" + refused
+                    + "\" dateseparator=\"slash\" usage=\"output\"/>\n", "")).singleElement().asString().contains("was refused by the RPG compiler");
+        }
     }
 
     @Test
-    void aTimestampAndCharacterDataWithCcsid65535AreRefused() {
-        assertThat(unsupported("TSNO", "", CHAR_OUT + "    <data name=\"S\" type=\"timestamp\" usage=\"output\"/>\n"
+    void timestampsOfTheLengthsARealSystemReturnedAndCharacterDataWithCcsid65535() {
+        ProgramLayout layout = ProgramLayout.of(IbmiFixtures.operation(dir, "TSOK", IbmiFixtures.pcml("TSOK", "", """
+                    <data name="S6" type="timestamp" usage="output"/>
+                    <data name="S0" type="timestamp" length="19" usage="output"/>
+                    <data name="S12" type="timestamp" length="32" usage="output"/>
+                    <data name="S1" type="timestamp" length="21" usage="output"/>
+                    <data name="S3" type="timestamp" length="23" usage="output"/>
+                """, ""), OVERLAY.formatted("TSOK", "TSOK")).orElseThrow());
+        assertThat(layout.parameters()).extracting(ProgramLayout.Parameter::layout).containsExactly(new Layout.Timestamp("S6", 6), new Layout.Timestamp("S0", 0),
+                new Layout.Timestamp("S12", 12), new Layout.Timestamp("S1", 1), new Layout.Timestamp("S3", 3));
+        assertThat(unsupported("TSNO", "", CHAR_OUT + "    <data name=\"S\" type=\"timestamp\" length=\"20\" usage=\"output\"/>\n"
+                + "    <data name=\"T\" type=\"timestamp\" length=\"18\" usage=\"output\"/>\n"
+                + "    <data name=\"U\" type=\"timestamp\" length=\"33\" usage=\"output\"/>\n"
                 + "    <data name=\"B\" type=\"char\" length=\"4\" ccsid=\"65535\" usage=\"output\"/>\n"
                 + "    <data name=\"V\" type=\"varchar\" length=\"4\" ccsid=\"65535\" usage=\"output\"/>\n", "")).containsExactly(
-                "S: a timestamp states no format in the PCML (no dateformat or timeformat attribute), so it is not laid out by assumption",
+                "S: a timestamp of length 20 is not a length of the one timestamp text a system returned (19, or 21 to 32)",
+                "T: a timestamp of length 18 is not a length of the one timestamp text a system returned (19, or 21 to 32)",
+                "U: a timestamp of length 33 is not a length of the one timestamp text a system returned (19, or 21 to 32)",
                 "B: a char field with CCSID 65535 holds bytes, which slay400-core cannot carry as bytes yet",
                 "V: a varchar field with CCSID 65535 holds bytes, which slay400-core cannot carry as bytes yet");
         assertThat(unsupported("TS500", "", "    <data name=\"C\" type=\"char\" length=\"4\" ccsid=\"500\" usage=\"output\"/>\n", "")).isEmpty();

@@ -1,0 +1,11 @@
+program: TSTSTMP12
+pcml: TSTSTMP12.pcml
+route: /stamps
+method: POST
+version: 1.0.0
+summary: Returns a timestamp with 12 fraction digits and with none (invented test program)
+
+parameters:
+  INSTAMP: { name: inStamp }
+  OUTSTAMP: { direction: response, name: outStamp }
+  OUTSTAMP0: { direction: response, name: outStamp0 }

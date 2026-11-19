@@ -1,0 +1,30 @@
+<pcml version="7.0">
+   <!-- RPG program: TSTMIDNGT  -->
+   <!-- created: 2026-11-19-16.11.40 -->
+   <!-- source: /home/<user>/gateway-ibmi-test/TSTMIDNGT.rpgle -->
+   <!-- 7 -->
+   <program name="TSTMIDNGT" path="/QSYS.LIB/OWNERLIB.LIB/TSTMIDNGT.PGM">
+      <data name="ISOIN" type="time" timeformat="ISO" timeseparator="period" usage="input" />
+      <data name="HMSIN" type="time" timeformat="HMS" timeseparator="colon" usage="input" />
+      <data name="USAIN" type="time" timeformat="USA" timeseparator="colon" usage="input" />
+      <data name="USAIN2" type="time" timeformat="USA" timeseparator="colon" usage="input" />
+      <data name="EURIN" type="time" timeformat="EUR" timeseparator="period" usage="input" />
+      <data name="INSTAMP" type="timestamp" usage="input" />
+      <data name="ISOECHO" type="time" timeformat="ISO" timeseparator="period" usage="inputoutput" />
+      <data name="ISOLOW" type="time" timeformat="ISO" timeseparator="period" usage="inputoutput" />
+      <data name="ISOHIGH" type="time" timeformat="ISO" timeseparator="period" usage="inputoutput" />
+      <data name="HMSECHO" type="time" timeformat="HMS" timeseparator="colon" usage="inputoutput" />
+      <data name="HMSLOW" type="time" timeformat="HMS" timeseparator="colon" usage="inputoutput" />
+      <data name="HMSHIGH" type="time" timeformat="HMS" timeseparator="colon" usage="inputoutput" />
+      <data name="USAECHO" type="time" timeformat="USA" timeseparator="colon" usage="inputoutput" />
+      <data name="USAECHO2" type="time" timeformat="USA" timeseparator="colon" usage="inputoutput" />
+      <data name="USALOW" type="time" timeformat="USA" timeseparator="colon" usage="inputoutput" />
+      <data name="USAHIGH" type="time" timeformat="USA" timeseparator="colon" usage="inputoutput" />
+      <data name="EURECHO" type="time" timeformat="EUR" timeseparator="period" usage="inputoutput" />
+      <data name="EURLOW" type="time" timeformat="EUR" timeseparator="period" usage="inputoutput" />
+      <data name="EURHIGH" type="time" timeformat="EUR" timeseparator="period" usage="inputoutput" />
+      <data name="STAMPNEXT" type="timestamp" usage="inputoutput" />
+      <data name="STAMPLOW" type="timestamp" usage="inputoutput" />
+      <data name="STAMPHIGH" type="timestamp" usage="inputoutput" />
+   </program>
+</pcml>

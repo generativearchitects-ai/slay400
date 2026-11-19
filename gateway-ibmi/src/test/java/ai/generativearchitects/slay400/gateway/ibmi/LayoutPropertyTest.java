@@ -12,8 +12,8 @@ import java.util.Random;
 import org.junit.jupiter.api.Test;
 
 /**
- * Bytes written are read back to the same wire values, for random layouts (scalars of every kind, dates and times in every
- * accepted format, structs, arrays, nested)
+ * Bytes written are read back to the same wire values, for random layouts (scalars of every kind, dates, times and
+ * timestamps in every accepted format and precision, structs, arrays, nested)
  * and random values that fit them. In-house generator on seeded {@link Random} (decision 48): the run seed comes from
  * {@code -Dslay400.seed} or is random, each case is seeded from it and its index, and a failure names both. The number of
  * cases is {@code -Dslay400.cases}, 500 by default.
@@ -36,8 +36,10 @@ class LayoutPropertyTest {
 
         Layout layout(String path, int depth) {
             fields++;
-            int kind = random.nextInt(depth > 2 || fields > 40 ? 9 : 11);
+            int[] leaves = {0, 1, 2, 3, 4, 5, 6, 9, 10, 11};
+            int kind = depth > 2 || fields > 40 ? leaves[random.nextInt(leaves.length)] : random.nextInt(12);
             return switch (kind) {
+                case 11 -> new Layout.Timestamp(path, random.nextInt(13));
                 case 9 -> new Layout.Date(path, Temporal.DateFormat.values()[random.nextInt(Temporal.DateFormat.values().length)], separator());
                 case 10 -> new Layout.Time(path, Temporal.TimeFormat.values()[random.nextInt(Temporal.TimeFormat.values().length)], separator());
                 case 0 -> new Layout.Text(path, 1 + random.nextInt(40), Optional.empty());
@@ -49,7 +51,7 @@ class LayoutPropertyTest {
                 }
                 case 5 -> new Layout.Float(path, random.nextBoolean() ? 4 : 8);
                 case 6 -> new Layout.Bytes(path, 1 + random.nextInt(16));
-                case 7, 8 -> {
+                case 7 -> {
                     List<Layout> members = new ArrayList<>();
                     int count = 1 + random.nextInt(5);
                     for (int i = 0; i < count; i++) {
@@ -57,7 +59,8 @@ class LayoutPropertyTest {
                     }
                     yield new Layout.Struct(path, members);
                 }
-                default -> new Layout.Array(path, random.nextInt(5), layout(path, depth + 1));
+                case 8 -> new Layout.Array(path, random.nextInt(5), layout(path, depth + 1));
+                default -> throw new IllegalStateException("kind " + kind);
             };
         }
 
@@ -110,6 +113,13 @@ class LayoutPropertyTest {
                     int seconds = t.format() == Temporal.TimeFormat.USA ? 0 : random.nextInt(60);
                     yield twice(new WireValue.Time(java.time.LocalTime.of(random.nextInt(24), random.nextInt(60), seconds)));
                 }
+                case Layout.Timestamp t -> {
+                    java.time.LocalDate day = java.time.LocalDate.ofEpochDay(java.time.LocalDate.of(1, 1, 1).toEpochDay()
+                            + (long) (random.nextDouble() * (java.time.LocalDate.of(9999, 12, 31).toEpochDay() - java.time.LocalDate.of(1, 1, 1).toEpochDay())));
+                    int shown = Math.min(t.digits(), 9);
+                    int nanos = random.nextInt((int) Math.pow(10, shown)) * (int) Math.pow(10, 9 - shown);
+                    yield twice(new WireValue.Timestamp(day.atTime(random.nextInt(24), random.nextInt(60), random.nextInt(60), nanos)));
+                }
                 case Layout.Bytes b -> {
                     byte[] bytes = new byte[random.nextInt(b.length() + 1)];
                     random.nextBytes(bytes);
@@ -150,6 +160,7 @@ class LayoutPropertyTest {
                 case Layout.Float f -> new WireValue.Float(0);
                 case Layout.Bytes b -> new WireValue.Bytes(new byte[b.length()]);
                 case Layout.Date d -> new WireValue.Date(d.format().lowest());
+                case Layout.Timestamp t -> new WireValue.Timestamp(java.time.LocalDateTime.of(1, 1, 1, 0, 0));
                 case Layout.Time t -> new WireValue.Time(java.time.LocalTime.MIDNIGHT);
                 case Layout.Struct s -> new WireValue.Struct(s.members().stream().map(Generator::blank).toList());
                 case Layout.Array a -> new WireValue.Array(java.util.Collections.nCopies(a.count(), blank(a.element())));

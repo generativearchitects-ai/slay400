@@ -28,7 +28,13 @@ final class Temporal {
         /** {@code yy/ddd}, the day of the year, years 1940 to 2039. */
         JUL(false),
         /** {@code yy.mm.dd}, years 1940 to 2039. */
-        YMD(false);
+        YMD(false),
+        /** {@code dd/mm/yy}, years 1940 to 2039. */
+        DMY(false),
+        /** {@code mm/dd/yyyy}. */
+        USA(true),
+        /** {@code yyyy-mm-dd}. */
+        JIS(true);
 
         final boolean fourDigitYear;
 
@@ -39,8 +45,8 @@ final class Temporal {
         /** The length of the text with one-character separators. */
         int length() {
             return switch (this) {
-                case ISO, EUR -> 10;
-                case MDY, YMD -> 8;
+                case ISO, EUR, USA, JIS -> 10;
+                case MDY, YMD, DMY -> 8;
                 case JUL -> 6;
             };
         }
@@ -63,7 +69,9 @@ final class Temporal {
         /** {@code hh:mm AM}: hours 1 to 12 and no seconds. */
         USA,
         /** {@code hh.mm.ss}. */
-        EUR;
+        EUR,
+        /** {@code hh:mm:ss}. */
+        JIS;
 
         int length() {
             return 8;
@@ -71,7 +79,7 @@ final class Temporal {
     }
 
     /** The separators of PCML that a real system has returned, by attribute value. */
-    static final Map<String, Character> SEPARATORS = Map.of("hyphen", '-', "slash", '/', "period", '.', "colon", ':');
+    static final Map<String, Character> SEPARATORS = Map.of("hyphen", '-', "slash", '/', "period", '.', "colon", ':', "comma", ',', "blank", ' ');
 
     static Optional<DateFormat> dateFormat(String value) {
         try {
@@ -102,8 +110,10 @@ final class Temporal {
         String mm = two(date.getMonthValue());
         String dd = two(date.getDayOfMonth());
         return switch (format) {
-            case ISO -> four(date.getYear()) + separator + mm + separator + dd;
+            case ISO, JIS -> four(date.getYear()) + separator + mm + separator + dd;
             case EUR -> dd + separator + mm + separator + four(date.getYear());
+            case USA -> mm + separator + dd + separator + four(date.getYear());
+            case DMY -> dd + separator + mm + separator + yy;
             case MDY -> mm + separator + dd + separator + yy;
             case YMD -> yy + separator + mm + separator + dd;
             case JUL -> yy + separator + three(date.getDayOfYear());
@@ -117,8 +127,10 @@ final class Temporal {
         }
         try {
             return Optional.of(switch (format) {
-                case ISO -> date(number(text, 0, 4), number(text, 5, 2), number(text, 8, 2), text, separator, 4, 7);
+                case ISO, JIS -> date(number(text, 0, 4), number(text, 5, 2), number(text, 8, 2), text, separator, 4, 7);
                 case EUR -> date(number(text, 6, 4), number(text, 3, 2), number(text, 0, 2), text, separator, 2, 5);
+                case USA -> date(number(text, 6, 4), number(text, 0, 2), number(text, 3, 2), text, separator, 2, 5);
+                case DMY -> date(year(number(text, 6, 2)), number(text, 3, 2), number(text, 0, 2), text, separator, 2, 5);
                 case MDY -> date(year(number(text, 6, 2)), number(text, 0, 2), number(text, 3, 2), text, separator, 2, 5);
                 case YMD -> date(year(number(text, 0, 2)), number(text, 3, 2), number(text, 6, 2), text, separator, 2, 5);
                 case JUL -> {
@@ -145,6 +157,11 @@ final class Temporal {
         }
         String mm = two(time.getMinute());
         if (format == TimeFormat.USA) {
+            if (time.equals(LocalTime.MIDNIGHT)) {
+                // The system's own form for midnight: an ISO midnight converted to USA is 00:00 AM, while an input 12:00 AM is read
+                // as 24.00.00, the end of the day (kickoff 05, run 2).
+                return "00" + separator + "00 AM";
+            }
             int hour = time.getHour() % 12 == 0 ? 12 : time.getHour() % 12;
             return two(hour) + separator + mm + (time.getHour() < 12 ? " AM" : " PM");
         }
@@ -160,7 +177,8 @@ final class Temporal {
             if (format == TimeFormat.USA) {
                 String half = text.substring(5);
                 int hour = number(text, 0, 2);
-                if (hour < 1 || hour > 12 || !half.equals(" AM") && !half.equals(" PM")) {
+                // 00 AM is the system's lowest time; 12:00 AM is both midnight and the end of the day: both read as 00:00:00.
+                if (hour > 12 || hour == 0 && !half.equals(" AM") || !half.equals(" AM") && !half.equals(" PM")) {
                     return Optional.empty();
                 }
                 int hour24 = hour % 12 + (half.equals(" PM") ? 12 : 0);
@@ -169,9 +187,90 @@ final class Temporal {
             if (text.charAt(5) != separator) {
                 return Optional.empty();
             }
-            return Optional.of(LocalTime.of(number(text, 0, 2), number(text, 3, 2), number(text, 6, 2)));
+            int hour = number(text, 0, 2);
+            int minute = number(text, 3, 2);
+            int second = number(text, 6, 2);
+            if (hour == 24 && minute == 0 && second == 0) {
+                // The end of the day, which the API cannot say: given as 00:00:00 (decision 123).
+                return Optional.of(LocalTime.MIDNIGHT);
+            }
+            return Optional.of(LocalTime.of(hour, minute, second));
         } catch (DateTimeException | NumberFormatException e) {
             return Optional.empty();
+        }
+    }
+
+    /** Why a timestamp text could not be read, or written. */
+    static final class StampProblem extends Exception {
+        private static final long serialVersionUID = 1L;
+
+        StampProblem(String reason) {
+            super(reason, null, false, false);
+        }
+    }
+
+    /**
+     * The text of a timestamp, as the system returned it: {@code yyyy-mm-dd-hh.mm.ss}, then a period and {@code digits} fraction
+     * digits when there are any.
+     *
+     * @throws StampProblem if the year is outside 1 to 9999, or the value has fractions of a second the field cannot hold
+     */
+    static String format(java.time.LocalDateTime stamp, int digits) throws StampProblem {
+        if (stamp.getYear() < 1 || stamp.getYear() > 9999) {
+            throw new StampProblem("the timestamp is outside the years 1 to 9999");
+        }
+        String nanos = "0".repeat(9 - Integer.toString(stamp.getNano()).length()) + stamp.getNano();
+        String fraction = digits <= 9 ? nanos.substring(0, digits) : nanos + "0".repeat(digits - 9);
+        if (digits < 9 && !nanos.substring(digits).chars().allMatch(c -> c == '0')) {
+            throw new StampProblem("the timestamp has fractions of a second that the field cannot hold");
+        }
+        String text = four(stamp.getYear()) + "-" + two(stamp.getMonthValue()) + "-" + two(stamp.getDayOfMonth()) + "-" + two(stamp.getHour()) + "."
+                + two(stamp.getMinute()) + "." + two(stamp.getSecond());
+        return digits == 0 ? text : text + "." + fraction;
+    }
+
+    /**
+     * The timestamp of a text. {@code 24.00.00} is midnight of the next day; at 9999-12-31, the system's highest timestamp, it is
+     * the last instant the field can show (decision 125). Fractions beyond the nine digits the API holds must be zero.
+     *
+     * @throws StampProblem if the text is not a timestamp of the field, or cannot be held
+     */
+    static java.time.LocalDateTime parseStamp(String text, int digits) throws StampProblem {
+        int length = digits == 0 ? 19 : 20 + digits;
+        if (text.length() != length || text.charAt(4) != '-' || text.charAt(7) != '-' || text.charAt(10) != '-' || text.charAt(13) != '.'
+                || text.charAt(16) != '.' || digits > 0 && text.charAt(19) != '.') {
+            throw new StampProblem("the bytes are not a timestamp");
+        }
+        try {
+            LocalDate date = LocalDate.of(number(text, 0, 4), number(text, 5, 2), number(text, 8, 2));
+            int hour = number(text, 11, 2);
+            int minute = number(text, 14, 2);
+            int second = number(text, 17, 2);
+            String fraction = digits == 0 ? "" : text.substring(20);
+            if (!fraction.chars().allMatch(c -> c >= '0' && c <= '9')) {
+                throw new StampProblem("the bytes are not a timestamp");
+            }
+            if (fraction.length() > 9 && !fraction.substring(9).chars().allMatch(c -> c == '0')) {
+                throw new StampProblem("the timestamp has fractions of a second that the API cannot hold");
+            }
+            String nine = (fraction + "000000000").substring(0, 9);
+            int nanos = Integer.parseInt(nine);
+            if (hour == 24) {
+                if (minute != 0 || second != 0 || nanos != 0) {
+                    throw new StampProblem("the bytes are not a timestamp");
+                }
+                if (date.equals(LocalDate.of(9999, 12, 31))) {
+                    // The system's highest timestamp, which programs use as "no end": the last instant the field can show, with
+                    // its fraction digits at 9 up to the nine the API holds (decision 125). Lossy like decision 123.
+                    int shown = Math.min(digits, 9);
+                    int nines = shown == 0 ? 0 : (int) ((Math.pow(10, shown) - 1) * Math.pow(10, 9 - shown));
+                    return java.time.LocalDateTime.of(date, LocalTime.of(23, 59, 59, nines));
+                }
+                return date.plusDays(1).atStartOfDay();
+            }
+            return java.time.LocalDateTime.of(date, LocalTime.of(hour, minute, second, nanos));
+        } catch (DateTimeException | NumberFormatException e) {
+            throw new StampProblem("the bytes are not a timestamp");
         }
     }
 

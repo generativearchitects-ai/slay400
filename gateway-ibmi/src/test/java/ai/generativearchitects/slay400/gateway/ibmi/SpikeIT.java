@@ -43,8 +43,8 @@ import org.junit.jupiter.api.io.TempDir;
  *
  * <p>The report goes to {@code target/ibmi/spike-report.md} and to the log, with host, user and library taken out. The test
  * fails only when it cannot write the report: what works and what does not is the content of the report. One connection at a
- * time: all Document calls, then all Raw calls. Programs 6 to 10 (kickoff 04) are called with the raw call only, and the
- * report shows every byte they returned. Thirteen calls in all.
+ * time: all Document calls, then all Raw calls. Programs 6 to 12 and the timestamp probe (kickoffs 04 and 05) are called with
+ * the raw call only, and the report shows every byte they returned. Sixteen calls in all.
  */
 @EnabledIfEnvironmentVariable(named = IbmiSystem.HOST, matches = ".+")
 @EnabledIfEnvironmentVariable(named = IbmiSystem.USER, matches = ".+")
@@ -75,7 +75,15 @@ class SpikeIT {
             new Shape("TSTFLOAT", "tstfloat", "8. floats", Map.of("in4", new ApiValue.Decimal(new BigDecimal("1.5")), "in8", new ApiValue.Decimal(new BigDecimal("10")))),
             new Shape("TSTDATES", "tstdates", "9. dates and times", Map.of("inDate", new ApiValue.Date(java.time.LocalDate.of(2026, 11, 18)),
                     "inTime", new ApiValue.Time(java.time.LocalTime.of(10, 15, 30)))),
-            new Shape("TSTCOUNTS", "tstcounts", "10. fixed dimensions with separate counts", Map.of("wanted", new ApiValue.Integer(BigInteger.valueOf(3)))));
+            new Shape("TSTCOUNTS", "tstcounts", "10. fixed dimensions with separate counts", Map.of("wanted", new ApiValue.Integer(BigInteger.valueOf(3)))),
+            new Shape("TSTMIDNGT", "tstmidngt", "11. midnight and the end of the day", Map.of("isoIn", new ApiValue.Time(java.time.LocalTime.MIDNIGHT),
+                    "hmsIn", new ApiValue.Time(java.time.LocalTime.MIDNIGHT), "usaIn", new ApiValue.Time(java.time.LocalTime.MIDNIGHT),
+                    "usaIn2", new ApiValue.Time(java.time.LocalTime.MIDNIGHT), "eurIn", new ApiValue.Time(java.time.LocalTime.MIDNIGHT),
+                    "inStamp", new ApiValue.DateTime(java.time.LocalDateTime.of(2026, 11, 19, 0, 0)))),
+            new Shape("TSTFORMAT", "tstformat", "12. the remaining formats and separators", Map.of("inDate", new ApiValue.Date(java.time.LocalDate.of(2026, 11, 19)),
+                    "inTime", new ApiValue.Time(java.time.LocalTime.of(10, 15, 30)))),
+            new Shape("TSTSTMP12", "tststmp12", "timestamps of 12 and 0 fraction digits", Map.of("inStamp",
+                    new ApiValue.DateTime(java.time.LocalDateTime.of(2026, 11, 19, 10, 15, 30, 123456789)))));
 
     /** What one way gave for one program. */
     record Result(boolean worked, String failure, Map<String, String> outputs, long millis, List<byte[]> rawBytes) {
@@ -130,9 +138,13 @@ class SpikeIT {
                 Result result = raw(connection, ProgramLayout.of(operation), input);
                 raw.put(shape.program(), result);
                 if (result.worked()) {
-                    DecodeResult decoded = OperationCodec.of(operation).decode(rawValues(connection, ProgramLayout.of(operation), result, input));
-                    responses.put(shape.program(), decoded.problems().isEmpty() ? String.valueOf(decoded.response().orElse(Map.of()))
-                            : "decode problems: " + decoded.problems().stream().map(p -> p.code() + " " + p.fieldPath()).collect(Collectors.joining(", ")));
+                    try {
+                        DecodeResult decoded = OperationCodec.of(operation).decode(rawValues(connection, ProgramLayout.of(operation), result, input));
+                        responses.put(shape.program(), decoded.problems().isEmpty() ? String.valueOf(decoded.response().orElse(Map.of()))
+                                : "decode problems: " + decoded.problems().stream().map(p -> p.code() + " " + p.fieldPath()).collect(Collectors.joining(", ")));
+                    } catch (LayoutException e) {
+                        responses.put(shape.program(), "none: the layout refuses " + e.getMessage() + " (the gateway answers 502)");
+                    }
                 }
             }
         } finally {
@@ -284,12 +296,16 @@ class SpikeIT {
                 return new Result(false, "escape: " + escaped.messages().stream().map(m -> m.id() + " " + m.text()).collect(Collectors.joining("; ")), Map.of(), millis, List.of());
             }
             List<byte[]> output = ((CallReply.Completed) reply).output();
-            List<WireValue> values = layout.decode(output, input, connection.ccsid());
             Map<String, String> outputs = new LinkedHashMap<>();
             for (int i = 0; i < layout.parameters().size(); i++) {
                 ProgramLayout.Parameter parameter = layout.parameters().get(i);
                 if (parameter.passing() != ProgramLayout.Passing.INPUT) {
-                    flatten(parameter.layout(), values.get(i), new int[0], outputs);
+                    // One parameter at a time, so that a value the layout refuses does not hide the others.
+                    try {
+                        flatten(parameter.layout(), parameter.layout().read(output.get(i), 0, connection.ccsid()), new int[0], outputs);
+                    } catch (LayoutException e) {
+                        outputs.put(parameter.name(), "refused by the layout: " + e.getMessage());
+                    }
                 }
             }
             return new Result(true, "", outputs, millis, output);
@@ -411,7 +427,7 @@ class SpikeIT {
 
     /** Programs 6 to 10: for each, every output parameter as bytes, its values, and the text of date and time fields. */
     private static String rawOnlyReport(int ccsid, Map<String, ApiOperation> operations, Map<String, Result> raw, Map<String, String> responses) {
-        StringBuilder out = new StringBuilder("\n## Programs 6 to 10, raw call only (kickoff 04)\n\n| Program | Raw | Time |\n|---|---|---|\n");
+        StringBuilder out = new StringBuilder("\n## Programs 6 to 12 and the timestamp probe, raw call only (kickoffs 04 and 05)\n\n| Program | Raw | Time |\n|---|---|---|\n");
         for (Shape shape : RAW_ONLY) {
             Result r = raw.get(shape.program());
             out.append("| ").append(shape.shape()).append(" (").append(shape.program()).append(") | ").append(cell(r)).append(" | ").append(r.millis()).append(" ms |\n");
@@ -432,7 +448,7 @@ class SpikeIT {
                     continue;
                 }
                 String hex = HexFormat.of().withUpperCase().formatHex(bytes);
-                String text = parameter.layout() instanceof Layout.Date || parameter.layout() instanceof Layout.Time
+                String text = parameter.layout() instanceof Layout.Date || parameter.layout() instanceof Layout.Time || parameter.layout() instanceof Layout.Timestamp
                         ? " (text `" + new com.ibm.as400.access.AS400Text(bytes.length, ccsid).toObject(bytes) + "`)" : "";
                 out.append("| ").append(parameter.name()).append(" | `").append(hex).append('`').append(text).append(" | ").append(bytes.length).append(" |\n");
             }

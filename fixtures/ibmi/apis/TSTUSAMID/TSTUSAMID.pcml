@@ -1,0 +1,14 @@
+<pcml version="7.0">
+   <!-- RPG program: TSTUSAMID  -->
+   <!-- created: 2026-11-19-17.14.04 -->
+   <!-- source: /home/<user>/gateway-ibmi-test/TSTUSAMID.rpgle -->
+   <!-- 7 -->
+   <program name="TSTUSAMID" path="/QSYS.LIB/OWNERLIB.LIB/TSTUSAMID.PGM">
+      <data name="ISOMID" type="time" timeformat="ISO" timeseparator="period" usage="input" />
+      <data name="USA12" type="time" timeformat="USA" timeseparator="colon" usage="input" />
+      <data name="USA00" type="time" timeformat="USA" timeseparator="colon" usage="input" />
+      <data name="USAFROMISO" type="time" timeformat="USA" timeseparator="colon" usage="inputoutput" />
+      <data name="ISOFROM12" type="time" timeformat="ISO" timeseparator="period" usage="inputoutput" />
+      <data name="ISOFROM00" type="time" timeformat="ISO" timeseparator="period" usage="inputoutput" />
+   </program>
+</pcml>

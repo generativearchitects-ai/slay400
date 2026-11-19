@@ -15,6 +15,9 @@ deterministic behaviour that a test can assert. Names and values are made up.
 | `TSTFLOAT` | float of 4 and 8 bytes, raw bytes | the 4-byte input doubled, the 8-byte input divided by 4, fixed -1.5 and 1.25E10; the bytes echoed and fixed `00FF7F80` |
 | `TSTDATES` | date, time and timestamp in several formats | the input date one day later (`*ISO`) and unchanged (`*EUR`, `*JUL`, `*YMD.`); the lowest and highest dates of `*ISO` and `*MDY`; the input time one hour later (`*HMS`) and unchanged (`*USA`, `*EUR`); the input timestamp one second later, and the lowest timestamp |
 | `TSTCOUNTS` | arrays whose number of elements a parameter, or a member of the same struct, gives | items `ITEM1` to `ITEMn` and lines `LINE1` to `LINEm` for the number asked for, at most 10 and 5; written with varying-dimension arrays |
+| `TSTMIDNGT` | times in ISO, HMS, USA and EUR; timestamps | each input time unchanged, the lowest and highest time of each format, a second USA input; the input timestamp one second later, the lowest and highest timestamp |
+| `TSTFORMAT` | dates in DMY, USA, JIS and MDY with a comma and a blank; times in JIS and HMS with a comma and a blank | the input date and time in each |
+| `TSTSTMP12`, `TSTLONGJUL`, `TSTCYMD`, `TSTCMDY`, `TSTCDMY` | one field each: a timestamp of 12 and 0 fraction digits; a date in `*LONGJUL`, `*CYMD`, `*CMDY`, `*CDMY` | probes of what the language allows as a parameter: the input comes back in the field |
 
 The PCML the compiler wrote for each program, as the setup tool brought it back (decision 119), and the overlay of its API,
 are in `fixtures/ibmi/apis/<PROGRAM>/`; programs 6 to 10 get theirs from their first run. `fixtures/ibmi/apis/TSTNONE` describes a program that is never created.

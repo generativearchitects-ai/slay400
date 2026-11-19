@@ -37,7 +37,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 class IbmiSetupIT {
 
     static final List<String> PROGRAMS = List.of("TSTSCALAR", "TSTSTRUCT", "TSTARRAY", "TSTNESTED", "TSTWAIT", "TSTSIGNS", "TSTVARCHAR", "TSTFLOAT",
-            "TSTDATES", "TSTCOUNTS");
+            "TSTDATES", "TSTCOUNTS", "TSTMIDNGT", "TSTFORMAT", "TSTSTMP12", "TSTUSAMID");
 
 
     @Test

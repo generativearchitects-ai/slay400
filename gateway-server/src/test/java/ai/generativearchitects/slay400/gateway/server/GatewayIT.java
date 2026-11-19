@@ -25,7 +25,8 @@ import org.junit.jupiter.api.io.TempDir;
  * The whole gateway over HTTP against a real IBM i, with a bundle built from the five test programs as the repository keeps
  * them (kickoff 03): a success for each shape, the business error of program 4 as its mapped status, the time-out of program
  * 5 as 504, a program that does not exist as 502, and a wrong library list as 502; and one call for each of programs 6 to 10
- * (kickoff 04). One connection at a time: two gateways one after the other, each with a pool of one. Thirteen program calls.
+ * (kickoff 04); and programs 11, 12 and the timestamp probe (kickoff 05). One connection at a time: two gateways one after the
+ * other, each with a pool of one. Sixteen program calls.
  *
  * <p>Host, user, password and library come from the environment variables of the ibmi workflow, through {@code ${NAME}}
  * placeholders in the configuration file, and are printed nowhere.
@@ -146,6 +147,25 @@ class GatewayIT {
             Answer counts = send(port, "GET", "/acme/test/counts?wanted=3", null);
             assertThat(counts.status()).isEqualTo(200);
             assertThat(counts.body()).isEqualTo("{\"items\":[\"ITEM1\",\"ITEM2\",\"ITEM3\"],\"box\":{\"count\":3,\"lines\":[\"LINE1\",\"LINE2\",\"LINE3\",\"\",\"\"]}}");
+
+            // Programs 11 and 12 and the timestamp probe (kickoff 05). Every midnight and end of the day reads as 00:00:00 (decision
+            // 123); the highest timestamp reads as the last instant the field can show (decision 125).
+            Answer midnight = send(port, "POST", "/acme/test/midnight", "{\"isoIn\":\"00:00:00\",\"hmsIn\":\"00:00:00\",\"usaIn\":\"00:00:00\","
+                    + "\"usaIn2\":\"00:00:00\",\"eurIn\":\"00:00:00\",\"inStamp\":\"2026-11-19T00:00:00\"}");
+            assertThat(midnight.status()).isEqualTo(200);
+            assertThat(midnight.body()).isEqualTo("{\"isoEcho\":\"00:00:00\",\"isoLow\":\"00:00:00\",\"isoHigh\":\"00:00:00\",\"hmsEcho\":\"00:00:00\","
+                    + "\"hmsLow\":\"00:00:00\",\"hmsHigh\":\"00:00:00\",\"usaEcho\":\"00:00:00\",\"usaEcho2\":\"00:00:00\",\"usaLow\":\"00:00:00\",\"usaHigh\":\"00:00:00\","
+                    + "\"eurEcho\":\"00:00:00\",\"eurLow\":\"00:00:00\",\"eurHigh\":\"00:00:00\",\"stampNext\":\"2026-11-19T00:00:01\",\"stampLow\":\"0001-01-01T00:00:00\","
+                    + "\"stampHigh\":\"9999-12-31T23:59:59.999999\"}");
+
+            Answer formats = send(port, "POST", "/acme/test/formats", "{\"inDate\":\"2026-11-19\",\"inTime\":\"10:15:30\"}");
+            assertThat(formats.status()).isEqualTo(200);
+            assertThat(formats.body()).isEqualTo("{\"dmyDate\":\"2026-11-19\",\"usaDate\":\"2026-11-19\",\"jisDate\":\"2026-11-19\",\"mdyComma\":\"2026-11-19\","
+                    + "\"mdyBlank\":\"2026-11-19\",\"jisTime\":\"10:15:30\",\"hmsComma\":\"10:15:30\",\"hmsBlank\":\"10:15:30\"}");
+
+            Answer stamps = send(port, "POST", "/acme/test/stamps", "{\"inStamp\":\"2026-11-19T10:15:30.123456789\"}");
+            assertThat(stamps.status()).isEqualTo(200);
+            assertThat(stamps.body()).isEqualTo("{\"outStamp\":\"2026-11-19T10:15:30.123456789\",\"outStamp0\":\"2026-11-19T10:15:30\"}");
         } finally {
             server.stop();
             started.close();
