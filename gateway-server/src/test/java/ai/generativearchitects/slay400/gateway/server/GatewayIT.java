@@ -24,8 +24,8 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * The whole gateway over HTTP against a real IBM i, with a bundle built from the five test programs as the repository keeps
  * them (kickoff 03): a success for each shape, the business error of program 4 as its mapped status, the time-out of program
- * 5 as 504, a program that does not exist as 502, and a wrong library list as 502. One connection at a time: two gateways one
- * after the other, each with a pool of one. Eight program calls and two sign-ons.
+ * 5 as 504, a program that does not exist as 502, and a wrong library list as 502; and one call for each of programs 6 to 10
+ * (kickoff 04). One connection at a time: two gateways one after the other, each with a pool of one. Thirteen program calls.
  *
  * <p>Host, user, password and library come from the environment variables of the ibmi workflow, through {@code ${NAME}}
  * placeholders in the configuration file, and are printed nowhere.
@@ -120,6 +120,32 @@ class GatewayIT {
 
             Answer missing = send(port, "GET", "/acme/test/missing", null);
             assertThat(missing.status()).isEqualTo(502);
+
+            // Programs 6 to 10 (kickoff 04): one call each. The answers are those NewProgramsTest derives on a fake connection.
+            Answer signs = send(port, "POST", "/acme/test/signs", "{\"inZoned\":\"12345.67\"}");
+            assertThat(signs.status()).isEqualTo(200);
+            assertThat(signs.body()).isEqualTo("{\"zonedNeg\":\"-12345.67\",\"zonedZero\":\"0.00\",\"zonedMax\":\"99999.99\",\"packedNeg\":\"-12345.67\","
+                    + "\"packedZero\":\"0.00\",\"packedMax\":\"99999.99\",\"int2Min\":-32768,\"int2Max\":32767,\"int4Min\":-2147483648,\"int4Max\":2147483647,"
+                    + "\"int8Min\":-9223372036854775808,\"int8Max\":9223372036854775807,\"uns2Max\":65535,\"uns4Max\":4294967295,\"uns8Max\":18446744073709551615}");
+
+            Answer texts = send(port, "POST", "/acme/test/texts", "{\"in2\":\"HELLO\",\"in4\":\"WORLD!\",\"inText\":\"@!{}[]|~#$ÄÖÜß\"}");
+            assertThat(texts.status()).isEqualTo(200);
+            assertThat(texts.body()).isEqualTo("{\"echo2\":\"HELLO\",\"echo4\":\"WORLD!\",\"empty2\":\"\",\"part2\":\"ABC\",\"full2\":\"ABCDEFGHIJ\",\"empty4\":\"\","
+                    + "\"part4\":\"XYZ\",\"full4\":\"KLMNOPQRST\",\"echoText\":\"@!{}[]|~#$ÄÖÜß\",\"pages\":\"@!{}[]|~#$ÄÖÜß\"}");
+
+            Answer floats = send(port, "POST", "/acme/test/floats", "{\"in4\":\"1.5\",\"in8\":\"10\"}");
+            assertThat(floats.status()).isEqualTo(200);
+            assertThat(floats.body()).isEqualTo("{\"out4\":\"3.0\",\"out8\":\"2.5\",\"fixed4\":\"-1.5\",\"fixed8\":\"12500000000\"}");
+
+            Answer dates = send(port, "POST", "/acme/test/dates", "{\"inDate\":\"2026-11-18\",\"inTime\":\"10:15:30\"}");
+            assertThat(dates.status()).isEqualTo(200);
+            assertThat(dates.body()).isEqualTo("{\"isoNext\":\"2026-11-19\",\"isoLow\":\"0001-01-01\",\"isoHigh\":\"9999-12-31\",\"mdyLow\":\"1940-01-01\","
+                    + "\"mdyHigh\":\"2039-12-31\",\"eurDate\":\"2026-11-18\",\"julDate\":\"2026-11-18\",\"ymdDot\":\"2026-11-18\",\"hmsNext\":\"11:15:30\","
+                    + "\"usaTime\":\"10:15:00\",\"eurTime\":\"10:15:30\"}");
+
+            Answer counts = send(port, "GET", "/acme/test/counts?wanted=3", null);
+            assertThat(counts.status()).isEqualTo(200);
+            assertThat(counts.body()).isEqualTo("{\"items\":[\"ITEM1\",\"ITEM2\",\"ITEM3\"],\"box\":{\"count\":3,\"lines\":[\"LINE1\",\"LINE2\",\"LINE3\",\"\",\"\"]}}");
         } finally {
             server.stop();
             started.close();

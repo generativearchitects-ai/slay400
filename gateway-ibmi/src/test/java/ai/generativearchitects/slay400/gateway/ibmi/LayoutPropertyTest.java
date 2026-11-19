@@ -12,7 +12,8 @@ import java.util.Random;
 import org.junit.jupiter.api.Test;
 
 /**
- * Bytes written are read back to the same wire values, for random layouts (scalars of every kind, structs, arrays, nested)
+ * Bytes written are read back to the same wire values, for random layouts (scalars of every kind, dates and times in every
+ * accepted format, structs, arrays, nested)
  * and random values that fit them. In-house generator on seeded {@link Random} (decision 48): the run seed comes from
  * {@code -Dslay400.seed} or is random, each case is seeded from it and its index, and a failure names both. The number of
  * cases is {@code -Dslay400.cases}, 500 by default.
@@ -35,8 +36,10 @@ class LayoutPropertyTest {
 
         Layout layout(String path, int depth) {
             fields++;
-            int kind = random.nextInt(depth > 2 || fields > 40 ? 7 : 9);
+            int kind = random.nextInt(depth > 2 || fields > 40 ? 9 : 11);
             return switch (kind) {
+                case 9 -> new Layout.Date(path, Temporal.DateFormat.values()[random.nextInt(Temporal.DateFormat.values().length)], separator());
+                case 10 -> new Layout.Time(path, Temporal.TimeFormat.values()[random.nextInt(Temporal.TimeFormat.values().length)], separator());
                 case 0 -> new Layout.Text(path, 1 + random.nextInt(40), Optional.empty());
                 case 1 -> new Layout.VarText(path, 1 + random.nextInt(30), random.nextBoolean() ? 2 : 4, Optional.empty());
                 case 2 -> new Layout.Int(path, new int[] {2, 4, 8}[random.nextInt(3)], random.nextBoolean());
@@ -46,7 +49,7 @@ class LayoutPropertyTest {
                 }
                 case 5 -> new Layout.Float(path, random.nextBoolean() ? 4 : 8);
                 case 6 -> new Layout.Bytes(path, 1 + random.nextInt(16));
-                case 7 -> {
+                case 7, 8 -> {
                     List<Layout> members = new ArrayList<>();
                     int count = 1 + random.nextInt(5);
                     for (int i = 0; i < count; i++) {
@@ -93,6 +96,20 @@ class LayoutPropertyTest {
                     double value = f.bytes() == 4 ? (double) (random.nextFloat() * 2e6f - 1e6f) : random.nextDouble() * 2e15 - 1e15;
                     yield twice(new WireValue.Float(value));
                 }
+                case Layout.Date d -> {
+                    long from = d.format().lowest().toEpochDay();
+                    long to = d.format().highest().toEpochDay();
+                    long day = switch (random.nextInt(4)) {
+                        case 0 -> from;
+                        case 1 -> to;
+                        default -> from + (long) (random.nextDouble() * (to - from + 1));
+                    };
+                    yield twice(new WireValue.Date(java.time.LocalDate.ofEpochDay(Math.min(day, to))));
+                }
+                case Layout.Time t -> {
+                    int seconds = t.format() == Temporal.TimeFormat.USA ? 0 : random.nextInt(60);
+                    yield twice(new WireValue.Time(java.time.LocalTime.of(random.nextInt(24), random.nextInt(60), seconds)));
+                }
                 case Layout.Bytes b -> {
                     byte[] bytes = new byte[random.nextInt(b.length() + 1)];
                     random.nextBytes(bytes);
@@ -132,9 +149,15 @@ class LayoutPropertyTest {
                 case Layout.Decimal d -> new WireValue.Decimal(BigDecimal.ZERO.setScale(d.scale()));
                 case Layout.Float f -> new WireValue.Float(0);
                 case Layout.Bytes b -> new WireValue.Bytes(new byte[b.length()]);
+                case Layout.Date d -> new WireValue.Date(d.format().lowest());
+                case Layout.Time t -> new WireValue.Time(java.time.LocalTime.MIDNIGHT);
                 case Layout.Struct s -> new WireValue.Struct(s.members().stream().map(Generator::blank).toList());
                 case Layout.Array a -> new WireValue.Array(java.util.Collections.nCopies(a.count(), blank(a.element())));
             };
+        }
+
+        char separator() {
+            return new char[] {'-', '/', '.', ':'}[random.nextInt(4)];
         }
 
         static WireValue[] twice(WireValue value) {

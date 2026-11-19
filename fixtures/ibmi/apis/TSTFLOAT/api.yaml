@@ -1,0 +1,14 @@
+program: TSTFLOAT
+pcml: TSTFLOAT.pcml
+route: /floats
+method: POST
+version: 1.0.0
+summary: Doubles and divides floats and returns fixed ones (invented test program)
+
+parameters:
+  IN4: { name: in4 }
+  IN8: { name: in8 }
+  OUT4: { direction: response, name: out4 }
+  OUT8: { direction: response, name: out8 }
+  FIXED4: { direction: response, name: fixed4 }
+  FIXED8: { direction: response, name: fixed8 }

@@ -1,13 +1,17 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<pcml version="6.0">
-  <struct name="ROWS">
-    <data name="ID" type="int" length="4" precision="31" usage="inherit"/>
-    <data name="LABEL" type="char" length="12" usage="inherit"/>
-    <data name="AMOUNT" type="packed" length="7" precision="2" usage="inherit"/>
-  </struct>
-  <program name="TSTARRAY" path="/QSYS.LIB/OWNERLIB.LIB/TSTARRAY.PGM">
-    <data name="WANTED" type="int" length="4" precision="31" usage="input"/>
-    <data name="COUNT" type="int" length="4" precision="31" usage="inputoutput"/>
-    <data name="ROWS" type="struct" struct="ROWS" count="10" usage="inputoutput"/>
-  </program>
+<pcml version="7.0">
+   <!-- RPG program: TSTARRAY  -->
+   <!-- created: 2026-11-18-14.03.00 -->
+   <!-- source: /home/<user>/gateway-ibmi-test/TSTARRAY.rpgle -->
+   <!-- 6 -->
+   <struct name="ROW_T">
+      <data name="ID" type="int" length="4" precision="31" usage="inherit" />
+      <data name="LABEL" type="char" length="12" usage="inherit" />
+      <data name="AMOUNT" type="packed" length="7" precision="2" usage="inherit" />
+   </struct>
+   <!-- 12 -->
+   <program name="TSTARRAY" path="/QSYS.LIB/OWNERLIB.LIB/TSTARRAY.PGM">
+      <data name="WANTED" type="int" length="4" precision="31" usage="input" />
+      <data name="COUNT" type="int" length="4" precision="31" usage="inputoutput" />
+      <data name="ROWS" type="struct" struct="ROW_T" count="10" usage="inputoutput" />
+   </program>
 </pcml>

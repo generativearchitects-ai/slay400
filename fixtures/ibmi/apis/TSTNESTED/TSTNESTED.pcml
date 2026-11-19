@@ -1,18 +1,23 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<pcml version="6.0">
-  <struct name="LINES">
-    <data name="SKU" type="char" length="8" usage="inherit"/>
-    <data name="QTY" type="int" length="4" precision="31" usage="inherit"/>
-  </struct>
-  <struct name="ORDER">
-    <data name="TOTAL" type="packed" length="9" precision="2" usage="inherit"/>
-    <data name="LINES" type="struct" struct="LINES" count="3" usage="inherit"/>
-  </struct>
-  <program name="TSTNESTED" path="/QSYS.LIB/OWNERLIB.LIB/TSTNESTED.PGM">
-    <data name="KEY" type="char" length="5" usage="input"/>
-    <data name="ORDER" type="struct" struct="ORDER" usage="inputoutput"/>
-    <data name="ERRFLAG" type="char" length="2" usage="inputoutput"/>
-    <data name="ERRCODE" type="char" length="7" usage="inputoutput"/>
-    <data name="ERRTEXT" type="char" length="40" usage="inputoutput"/>
-  </program>
+<pcml version="7.0">
+   <!-- RPG program: TSTNESTED  -->
+   <!-- created: 2026-11-18-14.03.03 -->
+   <!-- source: /home/<user>/gateway-ibmi-test/TSTNESTED.rpgle -->
+   <!-- 6 -->
+   <struct name="LINE_T">
+      <data name="SKU" type="char" length="8" usage="inherit" />
+      <data name="QTY" type="int" length="4" precision="31" usage="inherit" />
+   </struct>
+   <!-- 11 -->
+   <struct name="ORDER_T">
+      <data name="TOTAL" type="packed" length="9" precision="2" usage="inherit" />
+      <data name="LINES" type="struct" struct="LINE_T" count="3" usage="inherit" />
+   </struct>
+   <!-- 16 -->
+   <program name="TSTNESTED" path="/QSYS.LIB/OWNERLIB.LIB/TSTNESTED.PGM">
+      <data name="KEY" type="char" length="5" usage="input" />
+      <data name="ORDER" type="struct" struct="ORDER_T" usage="inputoutput" />
+      <data name="ERRFLAG" type="char" length="2" usage="inputoutput" />
+      <data name="ERRCODE" type="char" length="7" usage="inputoutput" />
+      <data name="ERRTEXT" type="char" length="40" usage="inputoutput" />
+   </program>
 </pcml>

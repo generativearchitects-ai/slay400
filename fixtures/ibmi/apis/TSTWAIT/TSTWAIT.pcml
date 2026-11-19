@@ -1,7 +1,10 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<pcml version="6.0">
-  <program name="TSTWAIT" path="/QSYS.LIB/OWNERLIB.LIB/TSTWAIT.PGM">
-    <data name="SECONDS" type="int" length="4" precision="31" usage="input"/>
-    <data name="DONE" type="char" length="1" usage="inputoutput"/>
-  </program>
+<pcml version="7.0">
+   <!-- RPG program: TSTWAIT  -->
+   <!-- created: 2026-11-18-14.03.06 -->
+   <!-- source: /home/<user>/gateway-ibmi-test/TSTWAIT.rpgle -->
+   <!-- 10 -->
+   <program name="TSTWAIT" path="/QSYS.LIB/OWNERLIB.LIB/TSTWAIT.PGM">
+      <data name="SECONDS" type="int" length="4" precision="31" usage="input" />
+      <data name="DONE" type="char" length="1" usage="inputoutput" />
+   </program>
 </pcml>

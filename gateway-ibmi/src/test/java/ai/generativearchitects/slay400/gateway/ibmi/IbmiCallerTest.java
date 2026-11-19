@@ -405,9 +405,16 @@ class IbmiCallerTest {
 
     @Test
     void theRedactorReplacesWholeNamesOnlyRegardlessOfCase() {
-        Redactor redactor = new Redactor(new IbmiSettings("sys.example", List.of("APPLIB", "A"), new Credentials("BOB", "pw".toCharArray()), true, 1, 1));
-        assertThat(redactor.apply("Object in APPLIB not found for bob on SYS.EXAMPLE, APPLIBX kept, A/B, pw!"))
-                .isEqualTo("Object in <library> not found for <user> on <host>, APPLIBX kept, <library>/B, <password>!");
+        Credentials credentials = new Credentials("BOB", "pw-7q".toCharArray());
+        Redactor redactor = new Redactor(new IbmiSettings("sys.example", List.of("APPLIB", "A"), credentials, true, 1, 1));
+        assertThat(redactor.apply("Object in APPLIB not found for bob on SYS.EXAMPLE, APPLIBX kept, A/B"))
+                .isEqualTo("Object in <library> not found for <user> on <host>, APPLIBX kept, <library>/B");
+        // The redactor does not hold the password: building it does not even read it, so clearing the credentials leaves no copy.
+        credentials.clear();
+        assertThat(redactor.apply("pw-7q")).isEqualTo("pw-7q");
+        assertThat(java.util.Arrays.stream(Redactor.class.getDeclaredFields()).filter(f -> !java.lang.reflect.Modifier.isStatic(f.getModifiers()))
+                .map(f -> f.getType().getSimpleName())).containsExactly("List");
         assertThat(new Redactor(new IbmiSettings("h", List.of("L"), new Credentials("U", new char[0]), true, 1, 1)).apply("nothing here")).isEqualTo("nothing here");
+        assertThat(new Redactor(new IbmiSettings("h", List.of("L"), new Credentials("", new char[0]), true, 1, 1)).apply("L h")).isEqualTo("<library> <host>");
     }
 }

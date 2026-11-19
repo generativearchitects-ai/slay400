@@ -99,6 +99,32 @@
           </execution>
         </executions>
       </plugin>
+      <!-- Every library of the distribution with its version and licence, from the dependency list: target/dist/bom.json (CycloneDX). -->
+      <plugin>
+        <groupId>org.cyclonedx</groupId>
+        <artifactId>cyclonedx-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>dist-bom</id>
+            <phase>package</phase>
+            <goals>
+              <goal>makeBom</goal>
+            </goals>
+            <configuration>
+              <projectType>application</projectType>
+              <outputFormat>json</outputFormat>
+              <outputName>bom</outputName>
+              <outputDirectory>${project.build.directory}/dist</outputDirectory>
+              <includeCompileScope>true</includeCompileScope>
+              <includeRuntimeScope>true</includeRuntimeScope>
+              <includeProvidedScope>false</includeProvidedScope>
+              <includeSystemScope>false</includeSystemScope>
+              <includeTestScope>false</includeTestScope>
+              <skipNotDeployed>false</skipNotDeployed>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <!-- The notice for the third-party components of the distribution. -->
       <plugin>
         <artifactId>maven-resources-plugin</artifactId>

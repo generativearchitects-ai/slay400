@@ -1,0 +1,21 @@
+<pcml version="7.0">
+   <!-- RPG program: TSTDATES  -->
+   <!-- created: 2026-11-19-11.32.38 -->
+   <!-- source: /home/<user>/gateway-ibmi-test/TSTDATES.rpgle -->
+   <!-- 8 -->
+   <program name="TSTDATES" path="/QSYS.LIB/OWNERLIB.LIB/TSTDATES.PGM">
+      <data name="INDATE" type="date" dateformat="ISO" dateseparator="hyphen" usage="input" />
+      <data name="INTIME" type="time" timeformat="ISO" timeseparator="period" usage="input" />
+      <data name="ISONEXT" type="date" dateformat="ISO" dateseparator="hyphen" usage="inputoutput" />
+      <data name="ISOLOW" type="date" dateformat="ISO" dateseparator="hyphen" usage="inputoutput" />
+      <data name="ISOHIGH" type="date" dateformat="ISO" dateseparator="hyphen" usage="inputoutput" />
+      <data name="MDYLOW" type="date" dateformat="MDY" dateseparator="slash" usage="inputoutput" />
+      <data name="MDYHIGH" type="date" dateformat="MDY" dateseparator="slash" usage="inputoutput" />
+      <data name="EURDATE" type="date" dateformat="EUR" dateseparator="period" usage="inputoutput" />
+      <data name="JULDATE" type="date" dateformat="JUL" dateseparator="slash" usage="inputoutput" />
+      <data name="YMDDOT" type="date" dateformat="YMD" dateseparator="period" usage="inputoutput" />
+      <data name="HMSNEXT" type="time" timeformat="HMS" timeseparator="colon" usage="inputoutput" />
+      <data name="USATIME" type="time" timeformat="USA" timeseparator="colon" usage="inputoutput" />
+      <data name="EURTIME" type="time" timeformat="EUR" timeseparator="period" usage="inputoutput" />
+   </program>
+</pcml>

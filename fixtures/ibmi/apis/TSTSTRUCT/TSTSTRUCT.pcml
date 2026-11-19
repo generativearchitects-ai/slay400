@@ -1,12 +1,16 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<pcml version="6.0">
-  <struct name="ITEM">
-    <data name="CODE" type="char" length="6" usage="inherit"/>
-    <data name="QUANTITY" type="packed" length="5" precision="0" usage="inherit"/>
-    <data name="PRICE" type="zoned" length="7" precision="2" usage="inherit"/>
-    <data name="STATUS" type="char" length="1" usage="inherit"/>
-  </struct>
-  <program name="TSTSTRUCT" path="/QSYS.LIB/OWNERLIB.LIB/TSTSTRUCT.PGM">
-    <data name="ITEM" type="struct" struct="ITEM" usage="inputoutput"/>
-  </program>
+<pcml version="7.0">
+   <!-- RPG program: TSTSTRUCT  -->
+   <!-- created: 2026-11-18-14.02.58 -->
+   <!-- source: /home/<user>/gateway-ibmi-test/TSTSTRUCT.rpgle -->
+   <!-- 6 -->
+   <struct name="ITEM_T">
+      <data name="CODE" type="char" length="6" usage="inherit" />
+      <data name="QUANTITY" type="packed" length="5" precision="0" usage="inherit" />
+      <data name="PRICE" type="zoned" length="7" precision="2" usage="inherit" />
+      <data name="STATUS" type="char" length="1" usage="inherit" />
+   </struct>
+   <!-- 13 -->
+   <program name="TSTSTRUCT" path="/QSYS.LIB/OWNERLIB.LIB/TSTSTRUCT.PGM">
+      <data name="ITEM" type="struct" struct="ITEM_T" usage="inputoutput" />
+   </program>
 </pcml>

@@ -50,7 +50,8 @@ class ProgramLayoutTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"tstscalar,TSTSCALAR,8", "tststruct,TSTSTRUCT,1", "tstarray,TSTARRAY,3", "tstnested,TSTNESTED,5", "tstwait,TSTWAIT,2", "tstnone,TSTNONE,1"})
+    @CsvSource({"tstscalar,TSTSCALAR,8", "tststruct,TSTSTRUCT,1", "tstarray,TSTARRAY,3", "tstnested,TSTNESTED,5", "tstwait,TSTWAIT,2", "tstnone,TSTNONE,1",
+            "tstsigns,TSTSIGNS,16", "tstvarchar,TSTVARCHAR,13", "tstfloat,TSTFLOAT,6", "tstdates,TSTDATES,13", "tstcounts,TSTCOUNTS,4"})
     void theProgramIsCalledThroughTheLibraryListNotTheLibraryOfThePcml(String id, String program, int parameters) {
         ProgramLayout layout = ProgramLayout.of(operations.get(id));
         assertThat(operations.get(id).program().path()).hasValue("/QSYS.LIB/OWNERLIB.LIB/" + program + ".PGM");
@@ -171,11 +172,60 @@ class ProgramLayoutTest {
     }
 
     @Test
-    void dateTimeAndTimestampFieldsAreNotSupportedYet() {
-        assertThat(unsupported("TDATE", "", CHAR_OUT + "    <data name=\"D\" type=\"date\" usage=\"output\"/>\n    <data name=\"T\" type=\"time\" usage=\"output\"/>\n"
-                + "    <data name=\"S\" type=\"timestamp\" usage=\"output\"/>\n", "")).containsExactly(
-                "D: date, time and timestamp fields are not supported yet by the ibmi backend", "T: date, time and timestamp fields are not supported yet by the ibmi backend",
-                "S: date, time and timestamp fields are not supported yet by the ibmi backend");
+    void datesAndTimesAreLaidOutAsTheirPcmlAttributesSay() {
+        ProgramLayout layout = ProgramLayout.of(IbmiFixtures.operation(dir, "TDT", IbmiFixtures.pcml("TDT", "", """
+                    <data name="D1" type="date" dateformat="ISO" dateseparator="hyphen" usage="output"/>
+                    <data name="D2" type="date" dateformat="mdy" dateseparator="slash" usage="output"/>
+                    <data name="D3" type="date" dateformat="EUR" dateseparator="period" usage="output"/>
+                    <data name="D4" type="date" dateformat="JUL" dateseparator="slash" usage="output"/>
+                    <data name="D5" type="date" dateformat="YMD" dateseparator="period" usage="output"/>
+                    <data name="T1" type="time" timeformat="ISO" timeseparator="period" usage="output"/>
+                    <data name="T2" type="time" timeformat="HMS" timeseparator="colon" usage="output"/>
+                    <data name="T3" type="time" timeformat="USA" timeseparator="colon" usage="output"/>
+                    <data name="T4" type="time" timeformat="EUR" timeseparator="period" usage="output"/>
+                """, ""), OVERLAY.formatted("TDT", "TDT")).orElseThrow());
+        assertThat(layout.parameters()).extracting(ProgramLayout.Parameter::layout).containsExactly(
+                new Layout.Date("D1", Temporal.DateFormat.ISO, '-'), new Layout.Date("D2", Temporal.DateFormat.MDY, '/'),
+                new Layout.Date("D3", Temporal.DateFormat.EUR, '.'), new Layout.Date("D4", Temporal.DateFormat.JUL, '/'),
+                new Layout.Date("D5", Temporal.DateFormat.YMD, '.'), new Layout.Time("T1", Temporal.TimeFormat.ISO, '.'),
+                new Layout.Time("T2", Temporal.TimeFormat.HMS, ':'), new Layout.Time("T3", Temporal.TimeFormat.USA, ':'),
+                new Layout.Time("T4", Temporal.TimeFormat.EUR, '.'));
+        assertThat(layout.parameters()).extracting(p -> p.layout().size()).containsExactly(10, 8, 10, 6, 8, 8, 8, 8, 8);
+    }
+
+    @Test
+    void aDateOrTimeWithoutItsFormatOrSeparatorIsRefusedNamingTheMissingAttribute() {
+        assertThat(unsupported("TDNF", "", CHAR_OUT + "    <data name=\"D\" type=\"date\" dateseparator=\"hyphen\" usage=\"output\"/>\n"
+                + "    <data name=\"E\" type=\"date\" dateformat=\"ISO\" usage=\"output\"/>\n"
+                + "    <data name=\"T\" type=\"time\" timeseparator=\"colon\" usage=\"output\"/>\n"
+                + "    <data name=\"U\" type=\"time\" timeformat=\"HMS\" usage=\"output\"/>\n", "")).containsExactly(
+                "D: the PCML states no dateformat for the date, so it is not laid out by assumption",
+                "E: the PCML states no dateseparator for the date, so it is not laid out by assumption",
+                "T: the PCML states no timeformat for the time, so it is not laid out by assumption",
+                "U: the PCML states no timeseparator for the time, so it is not laid out by assumption");
+    }
+
+    @Test
+    void formatsAndSeparatorsNoRealSystemHasReturnedAreRefused() {
+        assertThat(unsupported("TDUN", "", CHAR_OUT + "    <data name=\"D\" type=\"date\" dateformat=\"DMY\" dateseparator=\"slash\" usage=\"output\"/>\n"
+                + "    <data name=\"E\" type=\"date\" dateformat=\"ISO\" dateseparator=\"comma\" usage=\"output\"/>\n"
+                + "    <data name=\"T\" type=\"time\" timeformat=\"JIS\" timeseparator=\"colon\" usage=\"output\"/>\n"
+                + "    <data name=\"U\" type=\"time\" timeformat=\"HMS\" timeseparator=\"space\" usage=\"output\"/>\n", "")).containsExactly(
+                "D: the date format DMY with the separator slash has not been returned by a real system yet (decision 121)",
+                "E: the date format ISO with the separator comma has not been returned by a real system yet (decision 121)",
+                "T: the time format JIS with the separator colon has not been returned by a real system yet (decision 121)",
+                "U: the time format HMS with the separator space has not been returned by a real system yet (decision 121)");
+    }
+
+    @Test
+    void aTimestampAndCharacterDataWithCcsid65535AreRefused() {
+        assertThat(unsupported("TSNO", "", CHAR_OUT + "    <data name=\"S\" type=\"timestamp\" usage=\"output\"/>\n"
+                + "    <data name=\"B\" type=\"char\" length=\"4\" ccsid=\"65535\" usage=\"output\"/>\n"
+                + "    <data name=\"V\" type=\"varchar\" length=\"4\" ccsid=\"65535\" usage=\"output\"/>\n", "")).containsExactly(
+                "S: a timestamp states no format in the PCML (no dateformat or timeformat attribute), so it is not laid out by assumption",
+                "B: a char field with CCSID 65535 holds bytes, which slay400-core cannot carry as bytes yet",
+                "V: a varchar field with CCSID 65535 holds bytes, which slay400-core cannot carry as bytes yet");
+        assertThat(unsupported("TS500", "", "    <data name=\"C\" type=\"char\" length=\"4\" ccsid=\"500\" usage=\"output\"/>\n", "")).isEmpty();
     }
 
     @Test
@@ -207,22 +257,21 @@ class ProgramLayoutTest {
                     <data name="S8" type="int" length="8" usage="input"/>
                     <data name="F4" type="float" length="4" usage="input"/>
                     <data name="F8" type="float" length="8" usage="input"/>
-                    <data name="B" type="byte" length="3" usage="input"/>
                     <data name="C" type="char" length="2" ccsid="500" usage="input"/>
                     <data name="I" type="char" length="1" usage="inherit"/>
                     <data name="O" type="char" length="1" usage="output"/>
                 """, ""), OVERLAY.formatted("TKINDS", "TKINDS")).orElseThrow());
         assertThat(layout.parameters()).extracting(ProgramLayout.Parameter::layout).containsExactly(new Layout.VarText("V2", 8, 2, java.util.Optional.empty()),
                 new Layout.VarText("V4", 8, 4, java.util.Optional.empty()), new Layout.Int("U2", 2, false), new Layout.Int("S8", 8, true), new Layout.Float("F4", 4),
-                new Layout.Float("F8", 8), new Layout.Bytes("B", 3), new Layout.Text("C", 2, java.util.Optional.of(500)), new Layout.Text("I", 1, java.util.Optional.empty()),
+                new Layout.Float("F8", 8), new Layout.Text("C", 2, java.util.Optional.of(500)), new Layout.Text("I", 1, java.util.Optional.empty()),
                 new Layout.Text("O", 1, java.util.Optional.empty()));
         assertThat(layout.parameters()).extracting(ProgramLayout.Parameter::passing).endsWith(Passing.BOTH, Passing.OUTPUT);
         List<ParameterBytes> bytes = layout.encode(List.of(new WireValue.Text("A"), new WireValue.Text(""), new WireValue.Integer(BigInteger.ONE), new WireValue.Integer(BigInteger.ONE),
-                new WireValue.Float(1), new WireValue.Float(1), new WireValue.Bytes(new byte[] {1}), new WireValue.Text("!"), new WireValue.Text("X"), new WireValue.Blank()), 37);
-        assertThat(bytes.get(9).input()).isEmpty();
-        assertThat(bytes.get(9).outputLength()).isEqualTo(1);
+                new WireValue.Float(1), new WireValue.Float(1), new WireValue.Text("!"), new WireValue.Text("X"), new WireValue.Blank()), 37);
+        assertThat(bytes.get(8).input()).isEmpty();
         assertThat(bytes.get(8).outputLength()).isEqualTo(1);
-        assertThat(hex(bytes.get(7).input().orElseThrow())).isEqualTo("4F40");
+        assertThat(bytes.get(7).outputLength()).isEqualTo(1);
+        assertThat(hex(bytes.get(6).input().orElseThrow())).isEqualTo("4F40");
     }
 
     /** The operation of program 5 with the wire type of its first parameter replaced: shapes a descriptor could hold but the generator never writes. */
@@ -263,7 +312,9 @@ class ProgramLayoutTest {
         assertThat(ProgramLayout.unsupported(withWire(new WireType.Char(new Length.Ref("X"), Optional.empty()), new Count.None())))
                 .containsExactly("SECONDS: a length that names another field is not supported yet");
         assertThat(ProgramLayout.unsupported(withWire(new WireType.Byte(new Length.Ref("X")), new Count.None())))
-                .containsExactly("SECONDS: a length that names another field is not supported yet");
+                .containsExactly("SECONDS: a byte field has not been returned by a real system yet (decision 121)");
+        assertThat(ProgramLayout.unsupported(withWire(new WireType.Byte(new Length.Fixed(4)), new Count.None())))
+                .containsExactly("SECONDS: a byte field has not been returned by a real system yet (decision 121)");
         assertThat(ProgramLayout.unsupported(withWire(new WireType.VarChar(new Length.Ref("X"), Optional.empty(), Optional.empty()), new Count.None())))
                 .containsExactly("SECONDS: a length that names another field is not supported yet");
         assertThat(ProgramLayout.of(withWire(new WireType.Int(2, Optional.empty()), new Count.Fixed(3))).parameters().get(0).layout())
@@ -295,7 +346,7 @@ class ProgramLayoutTest {
     void aStructMemberThatCannotBeLaidOutMakesTheWholeStructUnsupported() {
         assertThat(unsupported("TSTRD", "", "    <data name=\"S\" type=\"struct\" struct=\"SD\" usage=\"output\"/>\n",
                 "  <struct name=\"SD\">\n    <data name=\"A\" type=\"char\" length=\"1\"/>\n    <data name=\"D\" type=\"date\"/>\n  </struct>\n"))
-                .containsExactly("S.D: date, time and timestamp fields are not supported yet by the ibmi backend");
+                .containsExactly("S.D: the PCML states no dateformat for the date, so it is not laid out by assumption");
     }
 
     @Test
