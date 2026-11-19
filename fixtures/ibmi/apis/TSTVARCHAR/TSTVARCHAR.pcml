@@ -1,0 +1,21 @@
+<pcml version="7.0">
+   <!-- RPG program: TSTVARCHAR  -->
+   <!-- created: 2026-11-19-10.23.57 -->
+   <!-- source: /home/<user>/gateway-ibmi-test/TSTVARCHAR.rpgle -->
+   <!-- 7 -->
+   <program name="TSTVARCHAR" path="/QSYS.LIB/OWNERLIB.LIB/TSTVARCHAR.PGM">
+      <data name="IN2" type="varchar" length="10" usage="input" />
+      <data name="IN4" type="varchar" length="10" varlength="4" usage="input" />
+      <data name="INTEXT" type="char" length="16" usage="input" />
+      <data name="ECHO2" type="varchar" length="10" usage="inputoutput" />
+      <data name="ECHO4" type="varchar" length="10" varlength="4" usage="inputoutput" />
+      <data name="EMPTY2" type="varchar" length="10" usage="inputoutput" />
+      <data name="PART2" type="varchar" length="10" usage="inputoutput" />
+      <data name="FULL2" type="varchar" length="10" usage="inputoutput" />
+      <data name="EMPTY4" type="varchar" length="10" varlength="4" usage="inputoutput" />
+      <data name="PART4" type="varchar" length="10" varlength="4" usage="inputoutput" />
+      <data name="FULL4" type="varchar" length="10" varlength="4" usage="inputoutput" />
+      <data name="ECHOTEXT" type="char" length="16" usage="inputoutput" />
+      <data name="PAGES" type="char" length="16" usage="inputoutput" />
+   </program>
+</pcml>

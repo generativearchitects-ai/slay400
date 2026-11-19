@@ -1,0 +1,17 @@
+<pcml version="7.0">
+   <!-- RPG program: TSTFLOAT  -->
+   <!-- created: 2026-11-19-10.23.59 -->
+   <!-- source: /home/<user>/gateway-ibmi-test/TSTFLOAT.rpgle -->
+   <!-- 6 -->
+   <program name="TSTFLOAT" path="/QSYS.LIB/OWNERLIB.LIB/TSTFLOAT.PGM">
+      <data name="IN4" type="float" length="4" usage="input" />
+      <data name="IN8" type="float" length="8" usage="input" />
+      <data name="INBYTES" type="char" length="4" ccsid="65535" usage="input" />
+      <data name="OUT4" type="float" length="4" usage="inputoutput" />
+      <data name="OUT8" type="float" length="8" usage="inputoutput" />
+      <data name="FIXED4" type="float" length="4" usage="inputoutput" />
+      <data name="FIXED8" type="float" length="8" usage="inputoutput" />
+      <data name="ECHOBYTES" type="char" length="4" ccsid="65535" usage="inputoutput" />
+      <data name="FIXEDBYTES" type="char" length="4" ccsid="65535" usage="inputoutput" />
+   </program>
+</pcml>

@@ -1,0 +1,24 @@
+<pcml version="7.0">
+   <!-- RPG program: TSTSIGNS  -->
+   <!-- created: 2026-11-19-10.23.56 -->
+   <!-- source: /home/<user>/gateway-ibmi-test/TSTSIGNS.rpgle -->
+   <!-- 7 -->
+   <program name="TSTSIGNS" path="/QSYS.LIB/OWNERLIB.LIB/TSTSIGNS.PGM">
+      <data name="INZONED" type="zoned" length="7" precision="2" usage="input" />
+      <data name="ZONEDNEG" type="zoned" length="7" precision="2" usage="inputoutput" />
+      <data name="ZONEDZERO" type="zoned" length="7" precision="2" usage="inputoutput" />
+      <data name="ZONEDMAX" type="zoned" length="7" precision="2" usage="inputoutput" />
+      <data name="PACKEDNEG" type="packed" length="7" precision="2" usage="inputoutput" />
+      <data name="PACKEDZERO" type="packed" length="7" precision="2" usage="inputoutput" />
+      <data name="PACKEDMAX" type="packed" length="7" precision="2" usage="inputoutput" />
+      <data name="INT2MIN" type="int" length="2" precision="15" usage="inputoutput" />
+      <data name="INT2MAX" type="int" length="2" precision="15" usage="inputoutput" />
+      <data name="INT4MIN" type="int" length="4" precision="31" usage="inputoutput" />
+      <data name="INT4MAX" type="int" length="4" precision="31" usage="inputoutput" />
+      <data name="INT8MIN" type="int" length="8" precision="63" usage="inputoutput" />
+      <data name="INT8MAX" type="int" length="8" precision="63" usage="inputoutput" />
+      <data name="UNS2MAX" type="int" length="2" precision="16" usage="inputoutput" />
+      <data name="UNS4MAX" type="int" length="4" precision="32" usage="inputoutput" />
+      <data name="UNS8MAX" type="int" length="8" precision="64" usage="inputoutput" />
+   </program>
+</pcml>
