@@ -1,0 +1,24 @@
+program: TSTSIGNS
+pcml: TSTSIGNS.pcml
+route: /signs
+method: POST
+version: 1.0.0
+summary: Returns numbers at their limits and the zoned input negated (invented test program)
+
+parameters:
+  INZONED: { name: inZoned, type: decimal }
+  ZONEDNEG: { direction: response, name: zonedNeg, type: decimal }
+  ZONEDZERO: { direction: response, name: zonedZero, type: decimal }
+  ZONEDMAX: { direction: response, name: zonedMax, type: decimal }
+  PACKEDNEG: { direction: response, name: packedNeg, type: decimal }
+  PACKEDZERO: { direction: response, name: packedZero, type: decimal }
+  PACKEDMAX: { direction: response, name: packedMax, type: decimal }
+  INT2MIN: { direction: response, name: int2Min, type: integer }
+  INT2MAX: { direction: response, name: int2Max, type: integer }
+  INT4MIN: { direction: response, name: int4Min, type: integer }
+  INT4MAX: { direction: response, name: int4Max, type: integer }
+  INT8MIN: { direction: response, name: int8Min, type: integer }
+  INT8MAX: { direction: response, name: int8Max, type: integer }
+  UNS2MAX: { direction: response, name: uns2Max, type: integer }
+  UNS4MAX: { direction: response, name: uns4Max, type: integer }
+  UNS8MAX: { direction: response, name: uns8Max, type: integer }

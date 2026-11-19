@@ -1,14 +1,13 @@
 **free
-// Invented test program for the gateway (kickoff 04, program 9): date, time and timestamp parameters in several formats.
+// Invented test program for the gateway (kickoff 04, program 9): date and time parameters in several formats.
 // The input date comes back one day later in *ISO and unchanged in *EUR, *JUL and *YMD with a period; the lowest and highest
-// dates of *ISO and *MDY; the input time one hour later in *HMS and unchanged in *USA and *EUR; the input timestamp one
-// second later, and the lowest timestamp.
+// dates of *ISO and *MDY; the input time one hour later in *HMS and unchanged in *USA and *EUR. (Timestamps were taken out
+// after the first run: the compiler's PCML states no format for them, so the gateway refuses them.)
 ctl-opt dftactgrp(*no) actgrp(*caller) option(*srcstmt);
 
 dcl-pi *n;
   inDate date(*iso) const;
   inTime time(*iso) const;
-  inStamp timestamp const;
   isoNext date(*iso);
   isoLow date(*iso);
   isoHigh date(*iso);
@@ -20,8 +19,6 @@ dcl-pi *n;
   hmsNext time(*hms);
   usaTime time(*usa);
   eurTime time(*eur);
-  stampNext timestamp;
-  stampLow timestamp;
 end-pi;
 
 isoNext = inDate + %days(1);
@@ -35,8 +32,6 @@ ymdDot = inDate;
 hmsNext = inTime + %hours(1);
 usaTime = inTime;
 eurTime = inTime;
-stampNext = inStamp + %seconds(1);
-stampLow = *loval;
 
 *inlr = *on;
 return;

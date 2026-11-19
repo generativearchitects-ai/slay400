@@ -1,0 +1,21 @@
+program: TSTDATES
+pcml: TSTDATES.pcml
+route: /dates
+method: POST
+version: 1.0.0
+summary: Returns a date and a time in several formats, and the lowest and highest dates of two formats (invented test program)
+
+parameters:
+  INDATE: { name: inDate }
+  INTIME: { name: inTime }
+  ISONEXT: { direction: response, name: isoNext }
+  ISOLOW: { direction: response, name: isoLow }
+  ISOHIGH: { direction: response, name: isoHigh }
+  MDYLOW: { direction: response, name: mdyLow }
+  MDYHIGH: { direction: response, name: mdyHigh }
+  EURDATE: { direction: response, name: eurDate }
+  JULDATE: { direction: response, name: julDate }
+  YMDDOT: { direction: response, name: ymdDot }
+  HMSNEXT: { direction: response, name: hmsNext }
+  USATIME: { direction: response, name: usaTime }
+  EURTIME: { direction: response, name: eurTime }

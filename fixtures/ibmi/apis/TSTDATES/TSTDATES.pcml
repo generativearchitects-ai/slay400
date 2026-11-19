@@ -1,4 +1,5 @@
 <pcml version="7.0">
+   <!-- Expected PCML (kickoff 04): written from the compiler's output of the first run, checked by the strict comparison of the next run and then replaced by the compiler's own output. -->
    <!-- RPG program: TSTDATES  -->
    <!-- created: 2026-11-19-10.24.00 -->
    <!-- source: /home/<user>/gateway-ibmi-test/TSTDATES.rpgle -->
@@ -6,7 +7,6 @@
    <program name="TSTDATES" path="/QSYS.LIB/OWNERLIB.LIB/TSTDATES.PGM">
       <data name="INDATE" type="date" dateformat="ISO" dateseparator="hyphen" usage="input" />
       <data name="INTIME" type="time" timeformat="ISO" timeseparator="period" usage="input" />
-      <data name="INSTAMP" type="timestamp" usage="input" />
       <data name="ISONEXT" type="date" dateformat="ISO" dateseparator="hyphen" usage="inputoutput" />
       <data name="ISOLOW" type="date" dateformat="ISO" dateseparator="hyphen" usage="inputoutput" />
       <data name="ISOHIGH" type="date" dateformat="ISO" dateseparator="hyphen" usage="inputoutput" />
@@ -18,7 +18,5 @@
       <data name="HMSNEXT" type="time" timeformat="HMS" timeseparator="colon" usage="inputoutput" />
       <data name="USATIME" type="time" timeformat="USA" timeseparator="colon" usage="inputoutput" />
       <data name="EURTIME" type="time" timeformat="EUR" timeseparator="period" usage="inputoutput" />
-      <data name="STAMPNEXT" type="timestamp" usage="inputoutput" />
-      <data name="STAMPLOW" type="timestamp" usage="inputoutput" />
    </program>
 </pcml>

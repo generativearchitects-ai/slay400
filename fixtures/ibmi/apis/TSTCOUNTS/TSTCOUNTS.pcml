@@ -1,0 +1,13 @@
+<pcml version="7.0">
+   <!-- Expected PCML (kickoff 04): written from the compiler's output of the first run, checked by the strict comparison of the next run and then replaced by the compiler's own output. -->
+   <struct name="BOX_T">
+      <data name="N" type="int" length="4" precision="31" usage="inherit" />
+      <data name="LINES" type="char" length="6" count="5" usage="inherit" />
+   </struct>
+   <program name="TSTCOUNTS" path="/QSYS.LIB/OWNERLIB.LIB/TSTCOUNTS.PGM">
+      <data name="WANTED" type="int" length="4" precision="31" usage="input" />
+      <data name="COUNT" type="int" length="4" precision="31" usage="inputoutput" />
+      <data name="ITEMS" type="char" length="8" count="10" usage="inputoutput" />
+      <data name="BOX" type="struct" struct="BOX_T" usage="inputoutput" />
+   </program>
+</pcml>

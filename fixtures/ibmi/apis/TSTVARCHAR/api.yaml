@@ -1,0 +1,21 @@
+program: TSTVARCHAR
+pcml: TSTVARCHAR.pcml
+route: /texts
+method: POST
+version: 1.0.0
+summary: Echoes variable-length and fixed text and returns fixed ones (invented test program)
+
+parameters:
+  IN2: { name: in2 }
+  IN4: { name: in4 }
+  INTEXT: { name: inText }
+  ECHO2: { direction: response, name: echo2 }
+  ECHO4: { direction: response, name: echo4 }
+  EMPTY2: { direction: response, name: empty2 }
+  PART2: { direction: response, name: part2 }
+  FULL2: { direction: response, name: full2 }
+  EMPTY4: { direction: response, name: empty4 }
+  PART4: { direction: response, name: part4 }
+  FULL4: { direction: response, name: full4 }
+  ECHOTEXT: { direction: response, name: echoText }
+  PAGES: { direction: response, name: pages }
