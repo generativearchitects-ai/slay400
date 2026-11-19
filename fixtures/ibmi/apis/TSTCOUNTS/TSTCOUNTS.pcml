@@ -1,9 +1,13 @@
 <pcml version="7.0">
-   <!-- Expected PCML (kickoff 04): written from the compiler's output of the first run, checked by the strict comparison of the next run and then replaced by the compiler's own output. -->
+   <!-- RPG program: TSTCOUNTS  -->
+   <!-- created: 2026-11-19-11.32.41 -->
+   <!-- source: /home/<user>/gateway-ibmi-test/TSTCOUNTS.rpgle -->
+   <!-- 10 -->
    <struct name="BOX_T">
       <data name="N" type="int" length="4" precision="31" usage="inherit" />
       <data name="LINES" type="char" length="6" count="5" usage="inherit" />
    </struct>
+   <!-- 15 -->
    <program name="TSTCOUNTS" path="/QSYS.LIB/OWNERLIB.LIB/TSTCOUNTS.PGM">
       <data name="WANTED" type="int" length="4" precision="31" usage="input" />
       <data name="COUNT" type="int" length="4" precision="31" usage="inputoutput" />

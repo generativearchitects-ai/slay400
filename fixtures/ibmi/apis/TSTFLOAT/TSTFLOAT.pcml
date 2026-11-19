@@ -1,9 +1,8 @@
 <pcml version="7.0">
-   <!-- Expected PCML (kickoff 04): written from the compiler's output of the first run, checked by the strict comparison of the next run and then replaced by the compiler's own output. -->
    <!-- RPG program: TSTFLOAT  -->
-   <!-- created: 2026-11-19-10.23.59 -->
+   <!-- created: 2026-11-19-11.32.36 -->
    <!-- source: /home/<user>/gateway-ibmi-test/TSTFLOAT.rpgle -->
-   <!-- 6 -->
+   <!-- 7 -->
    <program name="TSTFLOAT" path="/QSYS.LIB/OWNERLIB.LIB/TSTFLOAT.PGM">
       <data name="IN4" type="float" length="4" usage="input" />
       <data name="IN8" type="float" length="8" usage="input" />

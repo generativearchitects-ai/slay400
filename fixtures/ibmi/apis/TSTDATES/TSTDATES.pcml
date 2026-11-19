@@ -1,7 +1,6 @@
 <pcml version="7.0">
-   <!-- Expected PCML (kickoff 04): written from the compiler's output of the first run, checked by the strict comparison of the next run and then replaced by the compiler's own output. -->
    <!-- RPG program: TSTDATES  -->
-   <!-- created: 2026-11-19-10.24.00 -->
+   <!-- created: 2026-11-19-11.32.38 -->
    <!-- source: /home/<user>/gateway-ibmi-test/TSTDATES.rpgle -->
    <!-- 8 -->
    <program name="TSTDATES" path="/QSYS.LIB/OWNERLIB.LIB/TSTDATES.PGM">
