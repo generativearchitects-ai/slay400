@@ -17,11 +17,12 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
 /**
- * A probe of the programs of kickoff 05, before the gateway knows how to lay out what they hold. Each is called with the raw
+ * A probe of what the gateway cannot ask through its layout: how the system writes and reads midnight in the USA time format
+ * (kickoff 05). It is called with the raw
  * call: its inputs as text written by hand in the job's CCSID, each output in a buffer of {@value #BUFFER} zero bytes, so that
  * the report shows exactly how many bytes the system writes and what text. The parameters are read from the compiler's PCML
  * that the setup tool of the same run brought back; a program without PCML did not compile, which the report says.
- * Eight calls at most, one connection.
+ * One call, one connection.
  */
 @EnabledIfEnvironmentVariable(named = IbmiSystem.HOST, matches = ".+")
 @EnabledIfEnvironmentVariable(named = IbmiSystem.USER, matches = ".+")
@@ -35,19 +36,9 @@ class ProbeIT {
     record Probe(String program, String what, Map<String, String> inputs) {
     }
 
-    static final String MIDNIGHT_STAMP = "2026-11-19-00.00.00.000000";
-
     static final List<Probe> PROBES = List.of(
-            new Probe("TSTMIDNGT", "midnight in, USA midnight as 12:00 AM", Map.of("ISOIN", "00.00.00", "HMSIN", "00:00:00", "USAIN", "12:00 AM",
-                    "USAIN2", "12:00 AM", "EURIN", "00.00.00", "INSTAMP", MIDNIGHT_STAMP)),
-            new Probe("TSTMIDNGT", "the same, the second USA input as 00:00 AM", Map.of("ISOIN", "00.00.00", "HMSIN", "00:00:00", "USAIN", "12:00 AM",
-                    "USAIN2", "00:00 AM", "EURIN", "00.00.00", "INSTAMP", MIDNIGHT_STAMP)),
-            new Probe("TSTFORMAT", "a fixed date and time", Map.of("INDATE", "2026-11-19", "INTIME", "10.15.30")),
-            new Probe("TSTSTMP12", "a timestamp with 12 digits of fractions", Map.of("INSTAMP", "2026-11-19-10.15.30.123456789012")),
-            new Probe("TSTLONGJUL", "a date", Map.of("INDATE", "2026-11-19")),
-            new Probe("TSTCYMD", "a date", Map.of("INDATE", "2026-11-19")),
-            new Probe("TSTCMDY", "a date", Map.of("INDATE", "2026-11-19")),
-            new Probe("TSTCDMY", "a date", Map.of("INDATE", "2026-11-19")));
+            new Probe("TSTUSAMID", "midnight in the USA format: ISO midnight to USA, and the USA inputs 12:00 AM and 00:00 AM to ISO",
+                    Map.of("ISOMID", "00.00.00", "USA12", "12:00 AM", "USA00", "00:00 AM")));
 
     /** A top-level parameter of the compiler's PCML. */
     record Parameter(String name, String usage, Map<String, String> attributes) {
