@@ -284,6 +284,61 @@ public sealed interface Layout {
     }
 
     /**
+     * A timestamp as the system returned it: {@code yyyy-mm-dd-hh.mm.ss}, then a period and {@code digits} fraction digits when
+     * there are any, in the job's CCSID. The number of digits comes from the PCML's {@code length}. A blank is written as the
+     * lowest timestamp; bytes that are all blanks read as {@link WireValue.Blank}.
+     *
+     * @param path   the field
+     * @param digits the number of fraction digits, 0 to 12
+     */
+    record Timestamp(String path, int digits) implements Layout {
+        /**
+         * @throws NullPointerException     if {@code path} is {@code null}
+         * @throws IllegalArgumentException if {@code digits} is not 0 to 12
+         */
+        public Timestamp {
+            Objects.requireNonNull(path, "path");
+            if (digits < 0 || digits > 12) {
+                throw new IllegalArgumentException("digits must be 0 to 12");
+            }
+        }
+
+        @Override
+        public int size() {
+            return digits == 0 ? 19 : 20 + digits;
+        }
+
+        @Override
+        public void write(WireValue value, byte[] into, int offset, int ccsid) {
+            java.time.LocalDateTime stamp = switch (value) {
+                case WireValue.Timestamp t -> t.value();
+                case WireValue.Blank b -> java.time.LocalDateTime.of(1, 1, 1, 0, 0);
+                default -> throw LayoutException.wrongKind(path, "a timestamp");
+            };
+            String text;
+            try {
+                text = Temporal.format(stamp, digits);
+            } catch (Temporal.StampProblem e) {
+                throw new LayoutException(path, e.getMessage());
+            }
+            new Text(path, size(), Optional.empty()).write(new WireValue.Text(text), into, offset, ccsid);
+        }
+
+        @Override
+        public WireValue read(byte[] from, int offset, int ccsid) {
+            String text = ((WireValue.Text) new Text(path, size(), Optional.empty()).read(from, offset, ccsid)).value();
+            if (text.isBlank()) {
+                return new WireValue.Blank();
+            }
+            try {
+                return new WireValue.Timestamp(Temporal.parseStamp(text, digits));
+            } catch (Temporal.StampProblem e) {
+                throw new LayoutException(path, e.getMessage());
+            }
+        }
+    }
+
+    /**
      * A binary integer.
      *
      * @param path   the field

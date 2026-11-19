@@ -213,10 +213,7 @@ public final class ProgramLayout {
             }
             case WireType.Date d -> date(field, path, problems);
             case WireType.Time t -> time(field, path, problems);
-            case WireType.Timestamp t -> {
-                problems.add(path + ": a timestamp states no format in the PCML (no dateformat or timeformat attribute), so it is not laid out by assumption");
-                yield null;
-            }
+            case WireType.Timestamp t -> timestamp(field, path, problems);
         };
     }
 
@@ -239,8 +236,15 @@ public final class ProgramLayout {
     }
 
     /** A date laid out as its PCML attributes say, never by assumption. */
+    /** Date formats the compiler refused as a parameter (kickoff 05, run 1). */
+    private static final java.util.Set<String> REFUSED_DATE_FORMATS = java.util.Set.of("LONGJUL", "CYMD", "CMDY", "CDMY");
+
     private static Layout date(FieldDef field, String path, List<String> problems) {
         String format = field.attributes().get("dateformat");
+        if (format != null && REFUSED_DATE_FORMATS.contains(format.toUpperCase(Locale.ROOT))) {
+            problems.add(path + ": the date format " + format + " was refused by the RPG compiler as a parameter, so no real system has returned it");
+            return null;
+        }
         String separator = field.attributes().get("dateseparator");
         if (format == null || separator == null) {
             problems.add(path + ": the PCML states no " + (format == null ? "dateformat" : "dateseparator") + " for the date, so it is not laid out by assumption");
@@ -253,6 +257,25 @@ public final class ProgramLayout {
             return null;
         }
         return new Layout.Date(path, known.get(), character.get());
+    }
+
+    /**
+     * A timestamp: one fixed text whose length the PCML states when it is not the default. The lengths a real system returned
+     * are accepted (decision 121): none (26 bytes, 6 fraction digits), 19 (none) and 32 (12).
+     */
+    private static Layout timestamp(FieldDef field, String path, List<String> problems) {
+        String length = field.attributes().get("length");
+        Integer digits = switch (length == null ? "" : length) {
+            case "" -> 6;
+            case "19" -> 0;
+            case "32" -> 12;
+            default -> null;
+        };
+        if (digits == null) {
+            problems.add(path + ": a timestamp of length " + length + " has not been returned by a real system yet (decision 121)");
+            return null;
+        }
+        return new Layout.Timestamp(path, digits);
     }
 
     /** A time laid out as its PCML attributes say, never by assumption. */
