@@ -27,9 +27,8 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
  * means that a source or the compiler changed. The differences are written to {@code target/ibmi/pcml-differences.md}.
  *
  * <p>Idempotent: sources and PCML are overwritten, programs replaced. It leaves nothing outside that library and that folder:
- * the compiler writes no listing ({@code OUTPUT(*NONE)}). Every program is compiled even when one fails; a program that fails
- * is compiled once more with a listing, which is copied to the folder and its spooled file deleted, so that the compiler's
- * messages reach the report. One connection, ten compiles.
+ * the compiler writes no listing ({@code OUTPUT(*NONE)}), so no spooled file is created. Every program is compiled even when
+ * one fails, and a failure reports the compiler's summary messages. One connection, one compile per program.
  */
 @EnabledIfEnvironmentVariable(named = IbmiSystem.HOST, matches = ".+")
 @EnabledIfEnvironmentVariable(named = IbmiSystem.USER, matches = ".+")
@@ -40,8 +39,6 @@ class IbmiSetupIT {
     static final List<String> PROGRAMS = List.of("TSTSCALAR", "TSTSTRUCT", "TSTARRAY", "TSTNESTED", "TSTWAIT", "TSTSIGNS", "TSTVARCHAR", "TSTFLOAT",
             "TSTDATES", "TSTCOUNTS");
 
-    /** At most this many lines of compiler messages per program in the report. */
-    static final int MAX_LISTING_LINES = 40;
 
     @Test
     void compilesTheTestProgramsAndBringsBackTheirPcml() throws Exception {
@@ -80,10 +77,6 @@ class IbmiSetupIT {
                     report.add("## " + program);
                     report.add("");
                     report.add("Not compiled: " + IbmiSystem.redact(messages));
-                    report.add("");
-                    report.add("The compiler's messages:");
-                    report.add("");
-                    listing(system, program, sourcePath).forEach(line -> report.add("    " + IbmiSystem.redact(line)));
                     report.add("");
                     continue;
                 }
@@ -127,35 +120,5 @@ class IbmiSetupIT {
         Files.writeString(IbmiSystem.output().resolve("pcml-differences.md"), text);
         System.out.println(text);
         assertThat(failures).isEmpty();
-    }
-
-    /**
-     * The compiler's diagnostic lines for a program that does not compile: it is compiled once more with a listing, the listing
-     * is copied to the test folder and its spooled file deleted, so that nothing is left outside that folder and the library.
-     */
-    static List<String> listing(AS400 system, String program, String sourcePath) throws Exception {
-        String listingPath = IbmiSystem.folder() + "/" + program + ".lst";
-        List<String> lines = new ArrayList<>();
-        CommandCall command = new CommandCall(system);
-        command.setThreadSafe(false);
-        command.run("CRTBNDRPG PGM(" + IbmiSystem.library() + "/" + program + ") SRCSTMF('" + sourcePath + "') OUTPUT(*PRINT) REPLACE(*YES) DBGVIEW(*NONE) TGTCCSID(*JOB)");
-        boolean copied = command.run("CPYSPLF FILE(" + program + ") TOFILE(*TOSTMF) JOB(*) SPLNBR(*LAST) TOSTMF('" + listingPath + "') STMFOPT(*REPLACE)");
-        if (!copied) {
-            lines.add("(the listing could not be copied: " + Arrays.stream(command.getMessageList()).map(m -> m.getID()).collect(Collectors.joining(", ")) + ")");
-        }
-        boolean deleted = command.run("DLTSPLF FILE(" + program + ") JOB(*) SPLNBR(*LAST)");
-        System.out.println(program + ": listing " + (copied ? "copied" : "not copied") + ", spooled file " + (deleted ? "deleted" : "not deleted"));
-        if (!copied) {
-            return lines;
-        }
-        IFSFile file = new IFSFile(system, listingPath);
-        byte[] bytes;
-        try (IFSFileInputStream stream = new IFSFileInputStream(file)) {
-            bytes = stream.readAllBytes();
-        }
-        int ccsid = file.getCCSID();
-        String text = ccsid == 1208 ? new String(bytes, StandardCharsets.UTF_8) : new CharConverter(ccsid, system).byteArrayToString(bytes);
-        text.lines().filter(line -> line.matches(".*\\bRN[FS][0-9]{4}\\b.*")).map(String::strip).distinct().limit(MAX_LISTING_LINES).forEach(lines::add);
-        return lines;
     }
 }
