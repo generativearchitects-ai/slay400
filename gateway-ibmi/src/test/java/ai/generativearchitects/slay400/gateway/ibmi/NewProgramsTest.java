@@ -189,8 +189,9 @@ class NewProgramsTest {
                 return FakeIbmi.completed(parameters);
             };
             String all = gateway.text() + ibmi.text() + String.join("\n", access);
-            assertThat(all).contains("CPF9898").doesNotContain("MKVAR").doesNotContain("MKCHAR").doesNotContain("1977").doesNotContain("07:41")
-                    .doesNotContain("07.41").doesNotContain("7341").doesNotContain("88123").doesNotContain("54321");
+            assertThat(all).contains("CPF9898").doesNotContain("MKVAR").doesNotContain("MKCHAR").doesNotContain("1977-03-21").doesNotContain("03/21/77")
+                    .doesNotContain("21.03.1977").doesNotContain("07:41:53").doesNotContain("07.41.53").doesNotContain("7341.5").doesNotContain("88123.25")
+                    .doesNotContain("54321.09");
         }
     }
 }

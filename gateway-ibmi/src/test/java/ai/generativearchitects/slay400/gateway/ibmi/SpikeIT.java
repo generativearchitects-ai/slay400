@@ -43,7 +43,8 @@ import org.junit.jupiter.api.io.TempDir;
  *
  * <p>The report goes to {@code target/ibmi/spike-report.md} and to the log, with host, user and library taken out. The test
  * fails only when it cannot write the report: what works and what does not is the content of the report. One connection at a
- * time: all Document calls, then all Raw calls. Eight calls in all.
+ * time: all Document calls, then all Raw calls. Programs 6 to 10 (kickoff 04) are called with the raw call only, and the
+ * report shows every byte they returned. Thirteen calls in all.
  */
 @EnabledIfEnvironmentVariable(named = IbmiSystem.HOST, matches = ".+")
 @EnabledIfEnvironmentVariable(named = IbmiSystem.USER, matches = ".+")
@@ -66,6 +67,16 @@ class SpikeIT {
             new Shape("TSTARRAY", "tstarray", "3. array of structs with a count", Map.of("wanted", new ApiValue.Integer(BigInteger.valueOf(3)))),
             new Shape("TSTNESTED", "tstnested", "4. struct holding an array of structs, error fields", Map.of("key", new ApiValue.Text("K1"))));
 
+    /** Programs 6 to 10 (kickoff 04): raw call only. */
+    static final List<Shape> RAW_ONLY = List.of(
+            new Shape("TSTSIGNS", "tstsigns", "6. signs and ranges", Map.of("inZoned", new ApiValue.Decimal(new BigDecimal("12345.67")))),
+            new Shape("TSTVARCHAR", "tstvarchar", "7. varchar and code-page characters", Map.of("in2", new ApiValue.Text("HELLO"), "in4", new ApiValue.Text("WORLD!"),
+                    "inText", new ApiValue.Text("@!{}[]|~#$ÄÖÜß"))),
+            new Shape("TSTFLOAT", "tstfloat", "8. floats", Map.of("in4", new ApiValue.Decimal(new BigDecimal("1.5")), "in8", new ApiValue.Decimal(new BigDecimal("10")))),
+            new Shape("TSTDATES", "tstdates", "9. dates and times", Map.of("inDate", new ApiValue.Date(java.time.LocalDate.of(2026, 11, 18)),
+                    "inTime", new ApiValue.Time(java.time.LocalTime.of(10, 15, 30)))),
+            new Shape("TSTCOUNTS", "tstcounts", "10. fixed dimensions with separate counts", Map.of("wanted", new ApiValue.Integer(BigInteger.valueOf(3)))));
+
     /** What one way gave for one program. */
     record Result(boolean worked, String failure, Map<String, String> outputs, long millis, List<byte[]> rawBytes) {
     }
@@ -76,6 +87,9 @@ class SpikeIT {
         assertThat(pcmlDir.resolve("TSTSCALAR.pcml")).as("the setup tool runs first and writes the compiler's PCML").exists();
         Map<String, String> compilerPcml = new LinkedHashMap<>();
         for (Shape shape : SHAPES) {
+            compilerPcml.put(shape.program(), Files.readString(pcmlDir.resolve(shape.program() + ".pcml")));
+        }
+        for (Shape shape : RAW_ONLY) {
             compilerPcml.put(shape.program(), Files.readString(pcmlDir.resolve(shape.program() + ".pcml")));
         }
         Map<String, ApiOperation> operations = operations(compilerPcml);
@@ -109,11 +123,23 @@ class SpikeIT {
                             : "decode problems: " + decoded.problems().stream().map(p -> p.code() + " " + p.fieldPath()).collect(Collectors.joining(", ")));
                 }
             }
+            for (Shape shape : RAW_ONLY) {
+                ApiOperation operation = operations.get(shape.id());
+                List<WireValue> input = OperationCodec.of(operation).encode(shape.request(), Map.of()).parameters().orElseThrow();
+                inputs.put(shape.program(), input);
+                Result result = raw(connection, ProgramLayout.of(operation), input);
+                raw.put(shape.program(), result);
+                if (result.worked()) {
+                    DecodeResult decoded = OperationCodec.of(operation).decode(rawValues(connection, ProgramLayout.of(operation), result, input));
+                    responses.put(shape.program(), decoded.problems().isEmpty() ? String.valueOf(decoded.response().orElse(Map.of()))
+                            : "decode problems: " + decoded.problems().stream().map(p -> p.code() + " " + p.fieldPath()).collect(Collectors.joining(", ")));
+                }
+            }
         } finally {
             connection.close();
         }
 
-        String report = IbmiSystem.redact(report(ccsid, document, raw, responses));
+        String report = IbmiSystem.redact(report(ccsid, document, raw, responses) + rawOnlyReport(ccsid, operations, raw, responses));
         Files.createDirectories(IbmiSystem.output());
         Files.writeString(IbmiSystem.output().resolve("spike-report.md"), report);
         System.out.println(report);
@@ -379,6 +405,38 @@ class SpikeIT {
                             .append(bytes.length > 64 ? " ... (" + bytes.length + " bytes)" : "").append('\n');
                 }
             }
+        }
+        return out.toString();
+    }
+
+    /** Programs 6 to 10: for each, every output parameter as bytes, its values, and the text of date and time fields. */
+    private static String rawOnlyReport(int ccsid, Map<String, ApiOperation> operations, Map<String, Result> raw, Map<String, String> responses) {
+        StringBuilder out = new StringBuilder("\n## Programs 6 to 10, raw call only (kickoff 04)\n\n| Program | Raw | Time |\n|---|---|---|\n");
+        for (Shape shape : RAW_ONLY) {
+            Result r = raw.get(shape.program());
+            out.append("| ").append(shape.shape()).append(" (").append(shape.program()).append(") | ").append(cell(r)).append(" | ").append(r.millis()).append(" ms |\n");
+        }
+        for (Shape shape : RAW_ONLY) {
+            Result r = raw.get(shape.program());
+            out.append("\n### ").append(shape.program()).append("\n\n");
+            if (!r.worked()) {
+                out.append("Failed: `").append(r.failure()).append("`\n");
+                continue;
+            }
+            ProgramLayout layout = ProgramLayout.of(operations.get(shape.id()));
+            out.append("| Parameter | Bytes returned | Size |\n|---|---|---|\n");
+            for (int i = 0; i < layout.parameters().size(); i++) {
+                ProgramLayout.Parameter parameter = layout.parameters().get(i);
+                byte[] bytes = r.rawBytes().get(i);
+                if (bytes.length == 0) {
+                    continue;
+                }
+                String hex = HexFormat.of().withUpperCase().formatHex(bytes);
+                String text = parameter.layout() instanceof Layout.Date || parameter.layout() instanceof Layout.Time
+                        ? " (text `" + new com.ibm.as400.access.AS400Text(bytes.length, ccsid).toObject(bytes) + "`)" : "";
+                out.append("| ").append(parameter.name()).append(" | `").append(hex).append('`').append(text).append(" | ").append(bytes.length).append(" |\n");
+            }
+            out.append("\nValues read: ").append(r.outputs()).append("\n\nAPI response: ").append(responses.getOrDefault(shape.program(), "none")).append('\n');
         }
         return out.toString();
     }
