@@ -150,6 +150,18 @@ class TemporalLayoutTest {
     }
 
     @Test
+    void theUsaMidnightIsWhatTheSystemWritesAndTwelveAmIsTheEndOfTheDay() {
+        // Run 2 of kickoff 05 (44574718435), probe TSTUSAMID: an ISO midnight converted to USA is 00:00 AM; the USA input
+        // 12:00 AM converted to ISO is 24.00.00, the end of the day; the input 00:00 AM is 00.00.00.
+        Layout usa = new Layout.Time("T", TimeFormat.USA, ':');
+        Layout iso = new Layout.Time("T", TimeFormat.ISO, '.');
+        assertThat(hex(usa.toBytes(new WireValue.Time(LocalTime.MIDNIGHT), 273))).isEqualTo("F0F07AF0F040C1D4");
+        assertThat(iso.read(bytes("F2F44BF0F04BF0F0"), 0, 273)).isEqualTo(new WireValue.Time(LocalTime.MIDNIGHT));
+        assertThat(iso.read(bytes("F0F04BF0F04BF0F0"), 0, 273)).isEqualTo(new WireValue.Time(LocalTime.MIDNIGHT));
+        assertThat(hex(usa.toBytes(new WireValue.Time(LocalTime.MIDNIGHT), 273))).isNotEqualTo("F1F27AF0F040C1D4");
+    }
+
+    @Test
     void theUsaFormsOfMidnightAndTheEndOfTheDayAllReadAsMidnight() {
         Layout usa = new Layout.Time("T", TimeFormat.USA, ':');
         // 12:00 AM: an echoed midnight and the system's highest time; 00:00 AM: the system's lowest time, also taken as input.

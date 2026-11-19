@@ -1,5 +1,8 @@
 <pcml version="7.0">
-   <!-- Expected PCML (kickoff 05): written from the compiler's output for the same kinds of fields in run 1, checked by the strict comparison of the next run and then replaced by the compiler's own output. -->
+   <!-- RPG program: TSTUSAMID  -->
+   <!-- created: 2026-11-19-17.14.04 -->
+   <!-- source: /home/<user>/gateway-ibmi-test/TSTUSAMID.rpgle -->
+   <!-- 7 -->
    <program name="TSTUSAMID" path="/QSYS.LIB/OWNERLIB.LIB/TSTUSAMID.PGM">
       <data name="ISOMID" type="time" timeformat="ISO" timeseparator="period" usage="input" />
       <data name="USA12" type="time" timeformat="USA" timeseparator="colon" usage="input" />

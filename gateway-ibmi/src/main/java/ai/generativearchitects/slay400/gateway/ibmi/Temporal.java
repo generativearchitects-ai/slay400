@@ -158,8 +158,8 @@ final class Temporal {
         String mm = two(time.getMinute());
         if (format == TimeFormat.USA) {
             if (time.equals(LocalTime.MIDNIGHT)) {
-                // The system's own lowest time, which it took as an input and returned unchanged (kickoff 05, run 1). "12:00 AM"
-                // is also the form it gives the end of the day.
+                // The system's own form for midnight: an ISO midnight converted to USA is 00:00 AM, while an input 12:00 AM is read
+                // as 24.00.00, the end of the day (kickoff 05, run 2).
                 return "00" + separator + "00 AM";
             }
             int hour = time.getHour() % 12 == 0 ? 12 : time.getHour() % 12;
