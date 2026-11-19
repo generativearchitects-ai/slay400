@@ -53,6 +53,8 @@ public final class ProgramLayout {
         }
     }
 
+    /** The CCSID of character data that is not converted: bytes. */
+    private static final int NO_CONVERSION = 65535;
     private static final Pattern OBJECT_NAME = Pattern.compile("[A-Z$#@][A-Z0-9$#@_.]{0,9}");
     private static final Pattern PROGRAM_PATH = Pattern.compile("(?i)/QSYS\\.LIB/(?:[^/]+\\.LIB/)?([^/]+)\\.PGM");
 
@@ -156,8 +158,18 @@ public final class ProgramLayout {
     private static Layout element(FieldBinding binding, String path, List<String> problems) {
         FieldDef field = binding.field();
         return switch (field.wire()) {
-            case WireType.Char c -> fixed(c.length(), path, problems).map(length -> (Layout) new Layout.Text(path, length, c.ccsid())).orElse(null);
+            case WireType.Char c -> {
+                if (c.ccsid().isPresent() && c.ccsid().get() == NO_CONVERSION) {
+                    problems.add(path + ": a char field with CCSID 65535 holds bytes, which slay400-core cannot carry as bytes yet");
+                    yield null;
+                }
+                yield fixed(c.length(), path, problems).map(length -> (Layout) new Layout.Text(path, length, c.ccsid())).orElse(null);
+            }
             case WireType.VarChar v -> {
+                if (v.ccsid().isPresent() && v.ccsid().get() == NO_CONVERSION) {
+                    problems.add(path + ": a varchar field with CCSID 65535 holds bytes, which slay400-core cannot carry as bytes yet");
+                    yield null;
+                }
                 int prefix = v.varLength().orElse(2);
                 if (prefix != 2 && prefix != 4) {
                     problems.add(path + ": a varchar length prefix of " + prefix + " bytes is not supported");
@@ -185,7 +197,10 @@ public final class ProgramLayout {
                 }
                 yield new Layout.Float(path, f.lengthBytes());
             }
-            case WireType.Byte b -> fixed(b.length(), path, problems).map(length -> (Layout) new Layout.Bytes(path, length)).orElse(null);
+            case WireType.Byte b -> {
+                problems.add(path + ": a byte field has not been returned by a real system yet (decision 121)");
+                yield null;
+            }
             case WireType.Struct s -> {
                 List<Layout> members = new ArrayList<>();
                 boolean ok = true;
@@ -196,9 +211,12 @@ public final class ProgramLayout {
                 }
                 yield ok ? new Layout.Struct(path, members) : null;
             }
-            case WireType.Date d -> temporal(path, problems);
-            case WireType.Time t -> temporal(path, problems);
-            case WireType.Timestamp t -> temporal(path, problems);
+            case WireType.Date d -> date(field, path, problems);
+            case WireType.Time t -> time(field, path, problems);
+            case WireType.Timestamp t -> {
+                problems.add(path + ": a timestamp states no format in the PCML (no dateformat or timeformat attribute), so it is not laid out by assumption");
+                yield null;
+            }
         };
     }
 
@@ -220,9 +238,38 @@ public final class ProgramLayout {
         return new Layout.Decimal(path, digits, scale, packed);
     }
 
-    private static Layout temporal(String path, List<String> problems) {
-        problems.add(path + ": date, time and timestamp fields are not supported yet by the ibmi backend");
-        return null;
+    /** A date laid out as its PCML attributes say, never by assumption. */
+    private static Layout date(FieldDef field, String path, List<String> problems) {
+        String format = field.attributes().get("dateformat");
+        String separator = field.attributes().get("dateseparator");
+        if (format == null || separator == null) {
+            problems.add(path + ": the PCML states no " + (format == null ? "dateformat" : "dateseparator") + " for the date, so it is not laid out by assumption");
+            return null;
+        }
+        Optional<Temporal.DateFormat> known = Temporal.dateFormat(format);
+        Optional<Character> character = Temporal.separator(separator);
+        if (known.isEmpty() || character.isEmpty()) {
+            problems.add(path + ": the date format " + format + " with the separator " + separator + " has not been returned by a real system yet (decision 121)");
+            return null;
+        }
+        return new Layout.Date(path, known.get(), character.get());
+    }
+
+    /** A time laid out as its PCML attributes say, never by assumption. */
+    private static Layout time(FieldDef field, String path, List<String> problems) {
+        String format = field.attributes().get("timeformat");
+        String separator = field.attributes().get("timeseparator");
+        if (format == null || separator == null) {
+            problems.add(path + ": the PCML states no " + (format == null ? "timeformat" : "timeseparator") + " for the time, so it is not laid out by assumption");
+            return null;
+        }
+        Optional<Temporal.TimeFormat> known = Temporal.timeFormat(format);
+        Optional<Character> character = Temporal.separator(separator);
+        if (known.isEmpty() || character.isEmpty()) {
+            problems.add(path + ": the time format " + format + " with the separator " + separator + " has not been returned by a real system yet (decision 121)");
+            return null;
+        }
+        return new Layout.Time(path, known.get(), character.get());
     }
 
     /** The path of the program through the library list. */

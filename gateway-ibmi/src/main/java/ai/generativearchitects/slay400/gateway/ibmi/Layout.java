@@ -191,6 +191,99 @@ public sealed interface Layout {
     }
 
     /**
+     * A date as the compiler's PCML describes it: character data of the job's CCSID in a format and with a separator from
+     * {@code dateformat} and {@code dateseparator}. A blank is written as the lowest date of the format; bytes that are all
+     * blanks read as {@link WireValue.Blank}.
+     *
+     * @param path      the field
+     * @param format    the PCML date format
+     * @param separator the separator character
+     */
+    record Date(String path, Temporal.DateFormat format, char separator) implements Layout {
+        /** @throws NullPointerException if an argument is {@code null} */
+        public Date {
+            Objects.requireNonNull(path, "path");
+            Objects.requireNonNull(format, "format");
+        }
+
+        @Override
+        public int size() {
+            return format.length();
+        }
+
+        @Override
+        public void write(WireValue value, byte[] into, int offset, int ccsid) {
+            java.time.LocalDate date = switch (value) {
+                case WireValue.Date d -> d.value();
+                case WireValue.Blank b -> format.lowest();
+                default -> throw LayoutException.wrongKind(path, "a date");
+            };
+            String text = Temporal.format(date, format, separator);
+            if (text == null) {
+                throw new LayoutException(path, "the date is outside the years that the format " + format + " holds");
+            }
+            new Text(path, size(), Optional.empty()).write(new WireValue.Text(text), into, offset, ccsid);
+        }
+
+        @Override
+        public WireValue read(byte[] from, int offset, int ccsid) {
+            String text = ((WireValue.Text) new Text(path, size(), Optional.empty()).read(from, offset, ccsid)).value();
+            if (text.isBlank()) {
+                return new WireValue.Blank();
+            }
+            return new WireValue.Date(Temporal.parseDate(text, format, separator)
+                    .orElseThrow(() -> new LayoutException(path, "the bytes are not a date in the format " + format)));
+        }
+    }
+
+    /**
+     * A time as the compiler's PCML describes it: character data of the job's CCSID in a format and with a separator from
+     * {@code timeformat} and {@code timeseparator}. A blank is written as midnight; bytes that are all blanks read as
+     * {@link WireValue.Blank}. A time with fractions of a second, or with seconds in the USA format, is refused: the format
+     * cannot hold it (decision 40).
+     *
+     * @param path      the field
+     * @param format    the PCML time format
+     * @param separator the separator character
+     */
+    record Time(String path, Temporal.TimeFormat format, char separator) implements Layout {
+        /** @throws NullPointerException if an argument is {@code null} */
+        public Time {
+            Objects.requireNonNull(path, "path");
+            Objects.requireNonNull(format, "format");
+        }
+
+        @Override
+        public int size() {
+            return format.length();
+        }
+
+        @Override
+        public void write(WireValue value, byte[] into, int offset, int ccsid) {
+            java.time.LocalTime time = switch (value) {
+                case WireValue.Time t -> t.value();
+                case WireValue.Blank b -> java.time.LocalTime.MIDNIGHT;
+                default -> throw LayoutException.wrongKind(path, "a time");
+            };
+            String text = Temporal.format(time, format, separator);
+            if (text == null) {
+                throw new LayoutException(path, "the time has a part that the format " + format + " cannot hold");
+            }
+            new Text(path, size(), Optional.empty()).write(new WireValue.Text(text), into, offset, ccsid);
+        }
+
+        @Override
+        public WireValue read(byte[] from, int offset, int ccsid) {
+            String text = ((WireValue.Text) new Text(path, size(), Optional.empty()).read(from, offset, ccsid)).value();
+            if (text.isBlank()) {
+                return new WireValue.Blank();
+            }
+            return new WireValue.Time(Temporal.parseTime(text, format, separator)
+                    .orElseThrow(() -> new LayoutException(path, "the bytes are not a time in the format " + format)));
+        }
+    }
+
+    /**
      * A binary integer.
      *
      * @param path   the field
