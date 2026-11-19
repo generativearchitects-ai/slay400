@@ -1,0 +1,30 @@
+program: TSTMIDNGT
+pcml: TSTMIDNGT.pcml
+route: /midnight
+method: POST
+version: 1.0.0
+summary: Returns each time unchanged, the lowest and highest time of each format, and timestamps (invented test program)
+
+parameters:
+  ISOIN: { name: isoIn }
+  HMSIN: { name: hmsIn }
+  USAIN: { name: usaIn }
+  USAIN2: { name: usaIn2 }
+  EURIN: { name: eurIn }
+  INSTAMP: { name: inStamp }
+  ISOECHO: { direction: response, name: isoEcho }
+  ISOLOW: { direction: response, name: isoLow }
+  ISOHIGH: { direction: response, name: isoHigh }
+  HMSECHO: { direction: response, name: hmsEcho }
+  HMSLOW: { direction: response, name: hmsLow }
+  HMSHIGH: { direction: response, name: hmsHigh }
+  USAECHO: { direction: response, name: usaEcho }
+  USAECHO2: { direction: response, name: usaEcho2 }
+  USALOW: { direction: response, name: usaLow }
+  USAHIGH: { direction: response, name: usaHigh }
+  EURECHO: { direction: response, name: eurEcho }
+  EURLOW: { direction: response, name: eurLow }
+  EURHIGH: { direction: response, name: eurHigh }
+  STAMPNEXT: { direction: response, name: stampNext }
+  STAMPLOW: { direction: response, name: stampLow }
+  STAMPHIGH: { direction: internal }

@@ -1,0 +1,11 @@
+<pcml version="7.0">
+   <!-- RPG program: TSTSTMP12  -->
+   <!-- created: 2026-11-19-16.11.43 -->
+   <!-- source: /home/<user>/gateway-ibmi-test/TSTSTMP12.rpgle -->
+   <!-- 6 -->
+   <program name="TSTSTMP12" path="/QSYS.LIB/OWNERLIB.LIB/TSTSTMP12.PGM">
+      <data name="INSTAMP" type="timestamp" length="32" usage="input" />
+      <data name="OUTSTAMP" type="timestamp" length="32" usage="inputoutput" />
+      <data name="OUTSTAMP0" type="timestamp" length="19" usage="inputoutput" />
+   </program>
+</pcml>

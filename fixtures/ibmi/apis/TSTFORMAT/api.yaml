@@ -1,0 +1,18 @@
+program: TSTFORMAT
+pcml: TSTFORMAT.pcml
+route: /formats
+method: POST
+version: 1.0.0
+summary: Returns a date and a time in the remaining formats and separators (invented test program)
+
+parameters:
+  INDATE: { name: inDate }
+  INTIME: { name: inTime }
+  DMYDATE: { direction: response, name: dmyDate }
+  USADATE: { direction: response, name: usaDate }
+  JISDATE: { direction: response, name: jisDate }
+  MDYCOMMA: { direction: response, name: mdyComma }
+  MDYBLANK: { direction: response, name: mdyBlank }
+  JISTIME: { direction: response, name: jisTime }
+  HMSCOMMA: { direction: response, name: hmsComma }
+  HMSBLANK: { direction: response, name: hmsBlank }

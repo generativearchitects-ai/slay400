@@ -1,0 +1,18 @@
+<pcml version="7.0">
+   <!-- RPG program: TSTFORMAT  -->
+   <!-- created: 2026-11-19-16.11.41 -->
+   <!-- source: /home/<user>/gateway-ibmi-test/TSTFORMAT.rpgle -->
+   <!-- 7 -->
+   <program name="TSTFORMAT" path="/QSYS.LIB/OWNERLIB.LIB/TSTFORMAT.PGM">
+      <data name="INDATE" type="date" dateformat="ISO" dateseparator="hyphen" usage="input" />
+      <data name="INTIME" type="time" timeformat="ISO" timeseparator="period" usage="input" />
+      <data name="DMYDATE" type="date" dateformat="DMY" dateseparator="slash" usage="inputoutput" />
+      <data name="USADATE" type="date" dateformat="USA" dateseparator="slash" usage="inputoutput" />
+      <data name="JISDATE" type="date" dateformat="JIS" dateseparator="hyphen" usage="inputoutput" />
+      <data name="MDYCOMMA" type="date" dateformat="MDY" dateseparator="comma" usage="inputoutput" />
+      <data name="MDYBLANK" type="date" dateformat="MDY" dateseparator="blank" usage="inputoutput" />
+      <data name="JISTIME" type="time" timeformat="JIS" timeseparator="colon" usage="inputoutput" />
+      <data name="HMSCOMMA" type="time" timeformat="HMS" timeseparator="comma" usage="inputoutput" />
+      <data name="HMSBLANK" type="time" timeformat="HMS" timeseparator="blank" usage="inputoutput" />
+   </program>
+</pcml>
