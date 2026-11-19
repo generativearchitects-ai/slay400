@@ -260,22 +260,25 @@ public final class ProgramLayout {
     }
 
     /**
-     * A timestamp: one fixed text whose length the PCML states when it is not the default. The lengths a real system returned
-     * are accepted (decision 121): none (26 bytes, 6 fraction digits), 19 (none) and 32 (12).
+     * A timestamp: one fixed text whose length the PCML states when it is not the default. Every length of the one text form a
+     * system returned is accepted (decision 125): none (26 bytes, 6 fraction digits), 19 (none), and 21 to 32 (1 to 12 digits).
      */
     private static Layout timestamp(FieldDef field, String path, List<String> problems) {
         String length = field.attributes().get("length");
-        Integer digits = switch (length == null ? "" : length) {
-            case "" -> 6;
-            case "19" -> 0;
-            case "32" -> 12;
-            default -> null;
-        };
-        if (digits == null) {
-            problems.add(path + ": a timestamp of length " + length + " has not been returned by a real system yet (decision 121)");
+        if (length == null) {
+            return new Layout.Timestamp(path, 6);
+        }
+        int value;
+        try {
+            value = Integer.parseInt(length);
+        } catch (NumberFormatException e) {
+            value = -1;
+        }
+        if (value != 19 && (value < 21 || value > 32)) {
+            problems.add(path + ": a timestamp of length " + length + " is not a length of the one timestamp text a system returned (19, or 21 to 32)");
             return null;
         }
-        return new Layout.Timestamp(path, digits);
+        return new Layout.Timestamp(path, value == 19 ? 0 : value - 20);
     }
 
     /** A time laid out as its PCML attributes say, never by assumption. */

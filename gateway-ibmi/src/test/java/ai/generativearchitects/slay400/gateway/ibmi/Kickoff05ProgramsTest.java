@@ -116,39 +116,39 @@ class Kickoff05ProgramsTest {
     /** The bytes of the program's highest timestamp, as run 1 returned it: 9999-12-31-24.00.00.000000. */
     static final String HIGHEST = "F9F9F9F960F1F260F3F160F2F44BF0F04BF0F04BF0F0F0F0F0F0";
 
+    /** The answer of program 11 that GatewayIT expects from the real system too. */
+    static final String EXPECTED_MIDNIGHT = "{\"isoEcho\":\"00:00:00\",\"isoLow\":\"00:00:00\",\"isoHigh\":\"00:00:00\",\"hmsEcho\":\"00:00:00\","
+            + "\"hmsLow\":\"00:00:00\",\"hmsHigh\":\"00:00:00\",\"usaEcho\":\"00:00:00\",\"usaEcho2\":\"00:00:00\",\"usaLow\":\"00:00:00\",\"usaHigh\":\"00:00:00\","
+            + "\"eurEcho\":\"00:00:00\",\"eurLow\":\"00:00:00\",\"eurHigh\":\"00:00:00\",\"stampNext\":\"2026-11-19T00:00:01\",\"stampLow\":\"0001-01-01T00:00:00\","
+            + "\"stampHigh\":\"9999-12-31T23:59:59.999999\"}";
+
     @Test
-    void program11AnswersBadGatewayBecauseItsHighestTimestampCannotBeHeld() {
-        ProgramLayout layout = ProgramLayout.of(operations.get("tstmidngt"));
+    void program11WithTheBytesTheSystemReturned() {
+        // Run 2 of kickoff 05: every output of program 11 as the system returned it for an input of midnight, highest timestamp included.
+        String[] hex = {"F0F04BF0F04BF0F0", "F0F04BF0F04BF0F0", "F2F44BF0F04BF0F0", "F0F07AF0F07AF0F0", "F0F07AF0F07AF0F0", "F2F47AF0F07AF0F0",
+                "F0F07AF0F040C1D4", "F0F07AF0F040C1D4", "F0F07AF0F040C1D4", "F1F27AF0F040C1D4", "F0F04BF0F04BF0F0", "F0F04BF0F04BF0F0", "F2F44BF0F04BF0F0",
+                "F2F0F2F660F1F160F1F960F0F04BF0F04BF0F14BF0F0F0F0F0F0", "F0F0F0F160F0F160F0F160F0F04BF0F04BF0F04BF0F0F0F0F0F0", HIGHEST};
         fake.ccsid = 273;
         fake.program = (path, parameters) -> {
             List<byte[]> output = new ArrayList<>();
             for (int i = 0; i < parameters.size(); i++) {
-                ParameterBytes p = parameters.get(i);
-                output.add(p.outputLength() == 0 ? new byte[0] : i == parameters.size() - 1 ? java.util.HexFormat.of().parseHex(HIGHEST)
-                        : p.input().orElse(new byte[p.outputLength()]));
+                output.add(parameters.get(i).outputLength() == 0 ? new byte[0] : java.util.HexFormat.of().parseHex(hex[i - 6]));
             }
             return new CallReply.Completed(output);
         };
-        try (LogCapture gateway = new LogCapture("slay400.gateway")) {
-            RuntimeResponse response = post("/acme/test/midnight", MIDNIGHT_REQUEST);
-            assertThat(response.status()).isEqualTo(502);
-            assertThat(gateway.text()).contains("STAMPHIGH: the timestamp is the end of the year 9999, which the API cannot hold");
-        }
-        assertThat(layout.parameters()).hasSize(22);
+        RuntimeResponse response = post("/acme/test/midnight", MIDNIGHT_REQUEST);
+        assertThat(response.status()).isEqualTo(200);
+        assertThat(body(response)).isEqualTo(EXPECTED_MIDNIGHT);
+        assertThat(ProgramLayout.of(operations.get("tstmidngt")).parameters()).hasSize(22);
     }
 
-    /** The answer of program 11 when its highest timestamp is 24.00.00 of an ordinary day: the next day at midnight. */
-    static final String EXPECTED_MIDNIGHT = "{\"isoEcho\":\"00:00:00\",\"isoLow\":\"00:00:00\",\"isoHigh\":\"00:00:00\",\"hmsEcho\":\"00:00:00\","
-            + "\"hmsLow\":\"00:00:00\",\"hmsHigh\":\"00:00:00\",\"usaEcho\":\"00:00:00\",\"usaEcho2\":\"00:00:00\",\"usaLow\":\"00:00:00\",\"usaHigh\":\"00:00:00\","
-            + "\"eurEcho\":\"00:00:00\",\"eurLow\":\"00:00:00\",\"eurHigh\":\"00:00:00\",\"stampNext\":\"2026-11-19T00:00:01\",\"stampLow\":\"0001-01-01T00:00:00\"}";
-
     @Test
-    void program11WithAnOrdinaryEndOfDayGivesMidnightEverywhere() {
+    void program11WithAnOrdinaryEndOfDayGivesTheNextDay() {
         fake.ccsid = 273;
         program("tstmidngt", in -> midnight(in, java.time.LocalDateTime.of(2026, 11, 20, 0, 0)));
         RuntimeResponse response = post("/acme/test/midnight", MIDNIGHT_REQUEST);
         assertThat(response.status()).isEqualTo(200);
-        assertThat(body(response)).isEqualTo(EXPECTED_MIDNIGHT);
+        assertThat(body(response)).endsWith("\"stampHigh\":\"2026-11-20T00:00:00\"}");
     }
 
     /** The answer of program 12 that GatewayIT expects from the real system too. */

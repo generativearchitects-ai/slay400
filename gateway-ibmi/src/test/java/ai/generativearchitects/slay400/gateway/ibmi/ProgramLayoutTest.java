@@ -228,13 +228,19 @@ class ProgramLayoutTest {
                     <data name="S6" type="timestamp" usage="output"/>
                     <data name="S0" type="timestamp" length="19" usage="output"/>
                     <data name="S12" type="timestamp" length="32" usage="output"/>
+                    <data name="S1" type="timestamp" length="21" usage="output"/>
+                    <data name="S3" type="timestamp" length="23" usage="output"/>
                 """, ""), OVERLAY.formatted("TSOK", "TSOK")).orElseThrow());
         assertThat(layout.parameters()).extracting(ProgramLayout.Parameter::layout).containsExactly(new Layout.Timestamp("S6", 6), new Layout.Timestamp("S0", 0),
-                new Layout.Timestamp("S12", 12));
-        assertThat(unsupported("TSNO", "", CHAR_OUT + "    <data name=\"S\" type=\"timestamp\" length=\"23\" usage=\"output\"/>\n"
+                new Layout.Timestamp("S12", 12), new Layout.Timestamp("S1", 1), new Layout.Timestamp("S3", 3));
+        assertThat(unsupported("TSNO", "", CHAR_OUT + "    <data name=\"S\" type=\"timestamp\" length=\"20\" usage=\"output\"/>\n"
+                + "    <data name=\"T\" type=\"timestamp\" length=\"18\" usage=\"output\"/>\n"
+                + "    <data name=\"U\" type=\"timestamp\" length=\"33\" usage=\"output\"/>\n"
                 + "    <data name=\"B\" type=\"char\" length=\"4\" ccsid=\"65535\" usage=\"output\"/>\n"
                 + "    <data name=\"V\" type=\"varchar\" length=\"4\" ccsid=\"65535\" usage=\"output\"/>\n", "")).containsExactly(
-                "S: a timestamp of length 23 has not been returned by a real system yet (decision 121)",
+                "S: a timestamp of length 20 is not a length of the one timestamp text a system returned (19, or 21 to 32)",
+                "T: a timestamp of length 18 is not a length of the one timestamp text a system returned (19, or 21 to 32)",
+                "U: a timestamp of length 33 is not a length of the one timestamp text a system returned (19, or 21 to 32)",
                 "B: a char field with CCSID 65535 holds bytes, which slay400-core cannot carry as bytes yet",
                 "V: a varchar field with CCSID 65535 holds bytes, which slay400-core cannot carry as bytes yet");
         assertThat(unsupported("TS500", "", "    <data name=\"C\" type=\"char\" length=\"4\" ccsid=\"500\" usage=\"output\"/>\n", "")).isEmpty();

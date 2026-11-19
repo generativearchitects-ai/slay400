@@ -39,7 +39,7 @@ class LayoutPropertyTest {
             int[] leaves = {0, 1, 2, 3, 4, 5, 6, 9, 10, 11};
             int kind = depth > 2 || fields > 40 ? leaves[random.nextInt(leaves.length)] : random.nextInt(12);
             return switch (kind) {
-                case 11 -> new Layout.Timestamp(path, new int[] {0, 6, 12}[random.nextInt(3)]);
+                case 11 -> new Layout.Timestamp(path, random.nextInt(13));
                 case 9 -> new Layout.Date(path, Temporal.DateFormat.values()[random.nextInt(Temporal.DateFormat.values().length)], separator());
                 case 10 -> new Layout.Time(path, Temporal.TimeFormat.values()[random.nextInt(Temporal.TimeFormat.values().length)], separator());
                 case 0 -> new Layout.Text(path, 1 + random.nextInt(40), Optional.empty());
@@ -116,7 +116,8 @@ class LayoutPropertyTest {
                 case Layout.Timestamp t -> {
                     java.time.LocalDate day = java.time.LocalDate.ofEpochDay(java.time.LocalDate.of(1, 1, 1).toEpochDay()
                             + (long) (random.nextDouble() * (java.time.LocalDate.of(9999, 12, 31).toEpochDay() - java.time.LocalDate.of(1, 1, 1).toEpochDay())));
-                    int nanos = t.digits() == 0 ? 0 : t.digits() == 6 ? random.nextInt(1_000_000) * 1000 : random.nextInt(1_000_000_000);
+                    int shown = Math.min(t.digits(), 9);
+                    int nanos = random.nextInt((int) Math.pow(10, shown)) * (int) Math.pow(10, 9 - shown);
                     yield twice(new WireValue.Timestamp(day.atTime(random.nextInt(24), random.nextInt(60), random.nextInt(60), nanos)));
                 }
                 case Layout.Bytes b -> {

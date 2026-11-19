@@ -230,8 +230,8 @@ final class Temporal {
     }
 
     /**
-     * The timestamp of a text. {@code 24.00.00} is midnight of the next day; at 9999-12-31 it cannot be held. Fractions beyond
-     * the nine digits the API holds must be zero.
+     * The timestamp of a text. {@code 24.00.00} is midnight of the next day; at 9999-12-31, the system's highest timestamp, it is
+     * the last instant the field can show (decision 125). Fractions beyond the nine digits the API holds must be zero.
      *
      * @throws StampProblem if the text is not a timestamp of the field, or cannot be held
      */
@@ -260,7 +260,11 @@ final class Temporal {
                     throw new StampProblem("the bytes are not a timestamp");
                 }
                 if (date.equals(LocalDate.of(9999, 12, 31))) {
-                    throw new StampProblem("the timestamp is the end of the year 9999, which the API cannot hold");
+                    // The system's highest timestamp, which programs use as "no end": the last instant the field can show, with
+                    // its fraction digits at 9 up to the nine the API holds (decision 125). Lossy like decision 123.
+                    int shown = Math.min(digits, 9);
+                    int nines = shown == 0 ? 0 : (int) ((Math.pow(10, shown) - 1) * Math.pow(10, 9 - shown));
+                    return java.time.LocalDateTime.of(date, LocalTime.of(23, 59, 59, nines));
                 }
                 return date.plusDays(1).atStartOfDay();
             }

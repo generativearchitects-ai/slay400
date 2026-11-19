@@ -202,11 +202,20 @@ class TemporalLayoutTest {
     }
 
     @Test
-    void aTimestampAt24IsMidnightOfTheNextDayAndTheEndOf9999IsRefused() {
+    void aTimestampAt24IsMidnightOfTheNextDayAndTheHighestIsTheLastInstantTheFieldCanShow() {
         Layout six = new Layout.Timestamp("S", 6);
+        // The system's highest timestamp, as run 1 and run 2 returned it: "no end" to programs (decision 125).
         String high = "F9F9F9F960F1F260F3F160F2F44BF0F04BF0F04BF0F0F0F0F0F0";
-        assertThatThrownBy(() -> six.read(bytes(high), 0, 273)).isInstanceOf(LayoutException.class)
-                .hasMessage("S: the timestamp is the end of the year 9999, which the API cannot hold");
+        java.time.LocalDateTime last = java.time.LocalDateTime.of(9999, 12, 31, 23, 59, 59, 999_999_000);
+        assertThat(six.read(bytes(high), 0, 273)).isEqualTo(new WireValue.Timestamp(last));
+        assertThat(hex(six.toBytes(new WireValue.Timestamp(last), 273))).isEqualTo("F9F9F9F960F1F260F3F160F2F34BF5F94BF5F94BF9F9F9F9F9F9");
+        Layout zero = new Layout.Timestamp("S", 0);
+        assertThat(zero.read(bytes(high.substring(0, 38)), 0, 273)).isEqualTo(new WireValue.Timestamp(java.time.LocalDateTime.of(9999, 12, 31, 23, 59, 59)));
+        Layout twelve = new Layout.Timestamp("S", 12);
+        assertThat(twelve.read(bytes(high + "F0F0F0F0F0F0"), 0, 273))
+                .isEqualTo(new WireValue.Timestamp(java.time.LocalDateTime.of(9999, 12, 31, 23, 59, 59, 999_999_999)));
+        Layout one = new Layout.Timestamp("S", 1);
+        assertThat(one.read(bytes(high.substring(0, 42)), 0, 273)).isEqualTo(new WireValue.Timestamp(java.time.LocalDateTime.of(9999, 12, 31, 23, 59, 59, 900_000_000)));
         byte[] endOfDay = six.toBytes(new WireValue.Timestamp(java.time.LocalDateTime.of(2026, 11, 19, 0, 0)), 273);
         String text = hex(endOfDay).replace("F1F960F0F04B", "F1F860F2F44B");
         assertThat(six.read(bytes(text), 0, 273)).isEqualTo(new WireValue.Timestamp(java.time.LocalDateTime.of(2026, 11, 19, 0, 0)));

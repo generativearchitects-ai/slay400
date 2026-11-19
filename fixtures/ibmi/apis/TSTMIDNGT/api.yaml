@@ -27,4 +27,4 @@ parameters:
   EURHIGH: { direction: response, name: eurHigh }
   STAMPNEXT: { direction: response, name: stampNext }
   STAMPLOW: { direction: response, name: stampLow }
-  STAMPHIGH: { direction: internal }
+  STAMPHIGH: { direction: response, name: stampHigh }
