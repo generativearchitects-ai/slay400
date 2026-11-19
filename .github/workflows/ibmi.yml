@@ -56,8 +56,15 @@ jobs:
       - name: Setup tool (copy, compile, bring back the PCML)
         run: ./mvnw -B -Pibmi -pl gateway-ibmi verify -Dtest=NONE -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=IbmiSetupIT
       - name: Spike (Document and Raw)
+        # Also after a failed setup step, so that a run that brings new PCML back also brings their bytes.
+        if: ${{ !cancelled() }}
         run: ./mvnw -B -Pibmi -pl gateway-ibmi verify -Dtest=NONE -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=SpikeIT
+      - name: Probe of the programs of kickoff 05
+        if: ${{ !cancelled() }}
+        run: ./mvnw -B -Pibmi -pl gateway-ibmi verify -Dtest=NONE -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=ProbeIT
       - name: The gateway over HTTP
+        # Also after a failed setup step, so that a run that brings new PCML back also brings their bytes.
+        if: ${{ !cancelled() }}
         run: ./mvnw -B -Pibmi -pl gateway-server verify -Dtest=NONE -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=GatewayIT
       - name: Keep the compiler's PCML, the differences and the spike report
         if: always()
