@@ -166,4 +166,41 @@ class Kickoff06ProgramsTest {
                     .doesNotContain("D4C1D9D2C5D9");
         }
     }
+
+    static final String CLEARED_RETURNED = "D9F1404000125FF2F0F2F660F1F160F2F3F2F661F1F161F2F3F1F04BF0F14BF0F0F2F0F2F660F1F160F2F260F1F04BF0F04BF0F14BF0F0F0F0F0F0D9F2404000250FF2F0F2F660F1F160F2F4F2F661F1F161F2F4F1F04BF0F24BF0F0F2F0F2F660F1F160F2F260F1F04BF0F04BF0F24BF0F0F0F0F0F04040404000000FF0F0F0F160F0F160F0F1F4F061F0F161F0F1F0F04BF0F04BF0F0F0F0F0F160F0F160F0F160F0F04BF0F04BF0F04BF0F0F0F0F0F0";
+    static final String UNTOUCHED_RETURNED = CLEARED_RETURNED.substring(0, 236) + "40".repeat(59);
+
+    /** The two filled elements of program 15, as the system returned them. */
+    static final String FILLED_RECORDS = "[{\"name\":\"R1\",\"amount\":\"1.25\",\"isoDate\":\"2026-11-23\",\"ymdDate\":\"2026-11-23\",\"atTime\":\"10:01:00\","
+            + "\"stamp\":\"2026-11-22T10:00:01\"},{\"name\":\"R2\",\"amount\":\"2.50\",\"isoDate\":\"2026-11-24\",\"ymdDate\":\"2026-11-24\","
+            + "\"atTime\":\"10:02:00\",\"stamp\":\"2026-11-22T10:00:02\"}]";
+
+    private RuntimeResponse cleared() {
+        return started.gateway().handle(new RuntimeRequest("GET", "/acme/test/cleared", Map.of("filled", List.of("2")), Map.of(), Optional.empty(), () -> new byte[0]));
+    }
+
+    @Test
+    void program15ElementsLeftByClearAndInzAreTrimmed() {
+        // Decision 126 on the system's bytes: blanks, a packed zero and the lowest date (YMD 40/01/01), time and timestamp.
+        returns(CLEARED_RETURNED, CLEARED_RETURNED, CLEARED_RETURNED);
+        RuntimeResponse response = cleared();
+        assertThat(response.status()).isEqualTo(200);
+        assertThat(body(response)).isEqualTo("{\"cleared\":" + FILLED_RECORDS + ",\"inzd\":" + FILLED_RECORDS + ",\"untouched\":" + FILLED_RECORDS + "}");
+    }
+
+    @Test
+    void program15AnElementWithoutInzIsTodayAnErrorForItsBlankPackedField() {
+        // The finding of run 1: after a declaration without inz, every byte is a blank. Blank dates, times and timestamps read
+        // as blank, the blank packed number does not.
+        returns(CLEARED_RETURNED, CLEARED_RETURNED, UNTOUCHED_RETURNED);
+        try (LogCapture gateway = new LogCapture("slay400.gateway")) {
+            assertThat(cleared().status()).isEqualTo(502);
+            assertThat(gateway.text()).contains("UNTOUCHED.AMOUNT: the bytes are not a valid packed number");
+        }
+        // The same element with a packed zero in place of the blanks is trimmed.
+        returns(CLEARED_RETURNED, CLEARED_RETURNED, CLEARED_RETURNED.substring(0, 236) + "4040404000000F" + "40".repeat(52));
+        RuntimeResponse response = cleared();
+        assertThat(response.status()).isEqualTo(200);
+        assertThat(body(response)).endsWith("\"untouched\":" + FILLED_RECORDS + "}");
+    }
 }
