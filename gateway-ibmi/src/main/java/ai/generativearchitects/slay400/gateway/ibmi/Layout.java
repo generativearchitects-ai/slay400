@@ -418,7 +418,9 @@ public sealed interface Layout {
     }
 
     /**
-     * A packed or zoned decimal.
+     * A packed or zoned decimal. Bytes that are all EBCDIC blanks ({@code 40}), as RPG leaves a field declared without
+     * {@code inz}, read as {@link WireValue.Blank}, as dates, times and timestamps of blanks do; any other bytes that are not
+     * a valid number are refused.
      *
      * @param path   the field
      * @param digits the number of digits, 1 to 63
@@ -471,6 +473,9 @@ public sealed interface Layout {
 
         @Override
         public WireValue read(byte[] from, int offset, int ccsid) {
+            if (allBlanks(from, offset, size())) {
+                return new WireValue.Blank();
+            }
             try {
                 Object number = packed ? new AS400PackedDecimal(digits, scale).toObject(from, offset) : new AS400ZonedDecimal(digits, scale).toObject(from, offset);
                 return new WireValue.Decimal(((BigDecimal) number).setScale(scale));
@@ -478,6 +483,16 @@ public sealed interface Layout {
                 throw new LayoutException(path, packed ? "the bytes are not a valid packed number" : "the bytes are not a valid zoned number");
             }
         }
+    }
+
+    /** Whether the bytes of a field are all EBCDIC blanks. */
+    private static boolean allBlanks(byte[] from, int offset, int size) {
+        for (int i = offset; i < offset + size; i++) {
+            if (from[i] != 0x40) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

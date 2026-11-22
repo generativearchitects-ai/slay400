@@ -189,18 +189,22 @@ class Kickoff06ProgramsTest {
     }
 
     @Test
-    void program15AnElementWithoutInzIsTodayAnErrorForItsBlankPackedField() {
-        // The finding of run 1: after a declaration without inz, every byte is a blank. Blank dates, times and timestamps read
-        // as blank, the blank packed number does not.
+    void program15AnElementLeftWithoutInzIsTrimmedToo() {
+        // Run 1: after a declaration without inz every byte is a blank, the packed field too; it reads as blank (owner's answer).
         returns(CLEARED_RETURNED, CLEARED_RETURNED, UNTOUCHED_RETURNED);
-        try (LogCapture gateway = new LogCapture("slay400.gateway")) {
-            assertThat(cleared().status()).isEqualTo(502);
-            assertThat(gateway.text()).contains("UNTOUCHED.AMOUNT: the bytes are not a valid packed number");
-        }
-        // The same element with a packed zero in place of the blanks is trimmed.
-        returns(CLEARED_RETURNED, CLEARED_RETURNED, CLEARED_RETURNED.substring(0, 236) + "4040404000000F" + "40".repeat(52));
         RuntimeResponse response = cleared();
         assertThat(response.status()).isEqualTo(200);
-        assertThat(body(response)).endsWith("\"untouched\":" + FILLED_RECORDS + "}");
+        assertThat(body(response)).isEqualTo("{\"cleared\":" + FILLED_RECORDS + ",\"inzd\":" + FILLED_RECORDS + ",\"untouched\":" + FILLED_RECORDS + "}");
+    }
+
+    @Test
+    void program15ABlankAmountInAFilledElementIsNotTrimmed() {
+        // A filled element whose amount is blanks keeps its place; the codec leaves the blank amount out, as any blank member.
+        String first = CLEARED_RETURNED.substring(0, 8) + "404040" + CLEARED_RETURNED.substring(14);
+        returns(CLEARED_RETURNED, CLEARED_RETURNED, first);
+        RuntimeResponse response = cleared();
+        assertThat(response.status()).isEqualTo(200);
+        assertThat(body(response)).endsWith("\"untouched\":[{\"name\":\"R1\",\"isoDate\":\"2026-11-23\",\"ymdDate\":\"2026-11-23\","
+                + "\"atTime\":\"10:01:00\",\"stamp\":\"2026-11-22T10:00:01\"}," + FILLED_RECORDS.substring(FILLED_RECORDS.indexOf("{\"name\":\"R2\"")) + "}");
     }
 }
