@@ -44,6 +44,9 @@ public final class Gateway {
     /** The header that carries the correlation id, in both directions. */
     public static final String CORRELATION_HEADER = "X-Correlation-Id";
 
+    /** The code of the codec for a response over the limit of its bundle. */
+    static final String RESPONSE_LIMIT = "VAL104";
+
     /** The problem recorded in the access line when the client went away while its body was read. */
     public static final String CLIENT_GONE = "client-gone";
 
@@ -200,6 +203,11 @@ public final class Gateway {
                 DecodeResult decoded = compiled.codec().decode(returned.output());
                 if (!decoded.problems().isEmpty()) {
                     decoded.problems().forEach(p -> trace.problems.add(p.code()));
+                    if (decoded.problems().stream().anyMatch(p -> p.code().equals(RESPONSE_LIMIT))) {
+                        LOG.log(System.Logger.Level.WARNING, "The response of the operation " + found.operation().id() + " has more values than the limit of "
+                                + compiled.maxResponseValues() + " of its bundle, tenant " + tenant.name() + ", environment " + environment.name() + ", correlation id "
+                                + correlationId);
+                    }
                     return problem(ProblemDetails.of(ProblemKind.PROGRAM_CALL_FAILED, "The program returned data that the API cannot represent."),
                             trace, correlationId, Map.of());
                 }
