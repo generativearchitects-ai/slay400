@@ -38,11 +38,7 @@ class ProbeIT {
 
     static final List<Probe> PROBES = List.of(
             new Probe("TSTUSAMID", "midnight in the USA format: ISO midnight to USA, and the USA inputs 12:00 AM and 00:00 AM to ISO",
-                    Map.of("ISOMID", "00.00.00", "USA12", "12:00 AM", "USA00", "00:00 AM")),
-            // Kickoff 06, run 1: inputs as raw bytes in hexadecimal (x:), before the gateway has their layouts.
-            new Probe("TSTBYTES", "raw bytes: an input with zero, FF and bytes that are not text", Map.of("INBYTES", "x:00FF7F80C1F0400D")),
-            new Probe("TSTMEMBER", "groups filled to 0, 1, 2 and 3", Map.of("FILL1", "x:00000000", "FILL2", "x:00000001", "FILL3", "x:00000002", "FILL4", "x:00000003")),
-            new Probe("TSTCLEARED", "two of three elements filled", Map.of("FILLED", "x:00000002")));
+                    Map.of("ISOMID", "00.00.00", "USA12", "12:00 AM", "USA00", "00:00 AM")));
 
     /** A top-level parameter of the compiler's PCML. */
     record Parameter(String name, String usage, Map<String, String> attributes) {

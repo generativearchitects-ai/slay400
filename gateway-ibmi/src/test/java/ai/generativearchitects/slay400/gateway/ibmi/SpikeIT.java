@@ -67,7 +67,7 @@ class SpikeIT {
             new Shape("TSTARRAY", "tstarray", "3. array of structs with a count", Map.of("wanted", new ApiValue.Integer(BigInteger.valueOf(3)))),
             new Shape("TSTNESTED", "tstnested", "4. struct holding an array of structs, error fields", Map.of("key", new ApiValue.Text("K1"))));
 
-    /** Programs 6 to 10 (kickoff 04): raw call only. */
+    /** Programs 6 to 15 and the timestamp probe (kickoffs 04 to 06): raw call only. */
     static final List<Shape> RAW_ONLY = List.of(
             new Shape("TSTSIGNS", "tstsigns", "6. signs and ranges", Map.of("inZoned", new ApiValue.Decimal(new BigDecimal("12345.67")))),
             new Shape("TSTVARCHAR", "tstvarchar", "7. varchar and code-page characters", Map.of("in2", new ApiValue.Text("HELLO"), "in4", new ApiValue.Text("WORLD!"),
@@ -83,7 +83,13 @@ class SpikeIT {
             new Shape("TSTFORMAT", "tstformat", "12. the remaining formats and separators", Map.of("inDate", new ApiValue.Date(java.time.LocalDate.of(2026, 11, 19)),
                     "inTime", new ApiValue.Time(java.time.LocalTime.of(10, 15, 30)))),
             new Shape("TSTSTMP12", "tststmp12", "timestamps of 12 and 0 fraction digits", Map.of("inStamp",
-                    new ApiValue.DateTime(java.time.LocalDateTime.of(2026, 11, 19, 10, 15, 30, 123456789)))));
+                    new ApiValue.DateTime(java.time.LocalDateTime.of(2026, 11, 19, 10, 15, 30, 123456789)))),
+            // Kickoff 06.
+            new Shape("TSTBYTES", "tstbytes", "13. raw bytes, fixed and varying", Map.of("inBytes",
+                    new ApiValue.Binary(java.util.HexFormat.of().parseHex("00FF7F80C1F0400D")))),
+            new Shape("TSTMEMBER", "tstmember", "14. a count that is a struct member", Map.of("fill1", new ApiValue.Integer(BigInteger.ZERO),
+                    "fill2", new ApiValue.Integer(BigInteger.ONE), "fill3", new ApiValue.Integer(BigInteger.TWO), "fill4", new ApiValue.Integer(BigInteger.valueOf(3)))),
+            new Shape("TSTCLEARED", "tstcleared", "15. elements left by clear, inz and no inz", Map.of("filled", new ApiValue.Integer(BigInteger.TWO))));
 
     /** What one way gave for one program. */
     record Result(boolean worked, String failure, Map<String, String> outputs, long millis, List<byte[]> rawBytes) {
@@ -427,7 +433,7 @@ class SpikeIT {
 
     /** Programs 6 to 10: for each, every output parameter as bytes, its values, and the text of date and time fields. */
     private static String rawOnlyReport(int ccsid, Map<String, ApiOperation> operations, Map<String, Result> raw, Map<String, String> responses) {
-        StringBuilder out = new StringBuilder("\n## Programs 6 to 12 and the timestamp probe, raw call only (kickoffs 04 and 05)\n\n| Program | Raw | Time |\n|---|---|---|\n");
+        StringBuilder out = new StringBuilder("\n## Programs 6 to 15 and the timestamp probe, raw call only (kickoffs 04 to 06)\n\n| Program | Raw | Time |\n|---|---|---|\n");
         for (Shape shape : RAW_ONLY) {
             Result r = raw.get(shape.program());
             out.append("| ").append(shape.shape()).append(" (").append(shape.program()).append(") | ").append(cell(r)).append(" | ").append(r.millis()).append(" ms |\n");
