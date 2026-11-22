@@ -565,6 +565,62 @@ public sealed interface Layout {
     }
 
     /**
+     * Raw bytes preceded by their length in a 2- or 4-byte prefix: a {@code varchar} with CCSID 65535. The field always takes its
+     * maximum size; after the current length the gateway writes zero bytes, and on reading ignores what follows the length,
+     * which the system leaves as the caller sent it (kickoff 06, run 1).
+     *
+     * @param path        the field
+     * @param maxLength   the maximum length in bytes
+     * @param prefixBytes the size of the length prefix, 2 or 4
+     */
+    record VarBytes(String path, int maxLength, int prefixBytes) implements Layout {
+        /**
+         * @throws NullPointerException     if {@code path} is {@code null}
+         * @throws IllegalArgumentException if {@code prefixBytes} is not 2 or 4
+         */
+        public VarBytes {
+            Objects.requireNonNull(path, "path");
+            if (prefixBytes != 2 && prefixBytes != 4) {
+                throw new IllegalArgumentException("prefixBytes must be 2 or 4");
+            }
+        }
+
+        @Override
+        public int size() {
+            return prefixBytes + maxLength;
+        }
+
+        @Override
+        public void write(WireValue value, byte[] into, int offset, int ccsid) {
+            byte[] bytes = switch (value) {
+                case WireValue.Bytes b -> b.value();
+                case WireValue.Blank b -> new byte[0];
+                default -> throw LayoutException.wrongKind(path, "bytes");
+            };
+            if (bytes.length > maxLength) {
+                throw new LayoutException(path, "the bytes are longer than the field");
+            }
+            Arrays.fill(into, offset, offset + size(), (byte) 0);
+            if (prefixBytes == 2) {
+                new AS400UnsignedBin2().toBytes(bytes.length, into, offset);
+            } else {
+                new AS400Bin4().toBytes(bytes.length, into, offset);
+            }
+            System.arraycopy(bytes, 0, into, offset + prefixBytes, bytes.length);
+        }
+
+        @Override
+        public WireValue read(byte[] from, int offset, int ccsid) {
+            long length = prefixBytes == 2 ? ((Number) new AS400UnsignedBin2().toObject(from, offset)).longValue()
+                    : ((Number) new AS400Bin4().toObject(from, offset)).longValue();
+            if (length < 0 || length > maxLength) {
+                throw new LayoutException(path, "the length prefix is outside the field");
+            }
+            return new WireValue.Bytes(Arrays.copyOfRange(from, offset + prefixBytes, offset + prefixBytes + (int) length));
+        }
+    }
+
+    /**
      * A struct: its members one after the other, without alignment.
      *
      * @param path    the field

@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Bytes written are read back to the same wire values, for random layouts (scalars of every kind, dates, times and
- * timestamps in every accepted format and precision, structs, arrays, nested)
+ * timestamps in every accepted format and precision, fixed and varying raw bytes, structs, arrays, nested)
  * and random values that fit them. In-house generator on seeded {@link Random} (decision 48): the run seed comes from
  * {@code -Dslay400.seed} or is random, each case is seeded from it and its index, and a failure names both. The number of
  * cases is {@code -Dslay400.cases}, 500 by default.
@@ -36,10 +36,11 @@ class LayoutPropertyTest {
 
         Layout layout(String path, int depth) {
             fields++;
-            int[] leaves = {0, 1, 2, 3, 4, 5, 6, 9, 10, 11};
-            int kind = depth > 2 || fields > 40 ? leaves[random.nextInt(leaves.length)] : random.nextInt(12);
+            int[] leaves = {0, 1, 2, 3, 4, 5, 6, 9, 10, 11, 12};
+            int kind = depth > 2 || fields > 40 ? leaves[random.nextInt(leaves.length)] : random.nextInt(13);
             return switch (kind) {
                 case 11 -> new Layout.Timestamp(path, random.nextInt(13));
+                case 12 -> new Layout.VarBytes(path, 1 + random.nextInt(32), random.nextBoolean() ? 2 : 4);
                 case 9 -> new Layout.Date(path, Temporal.DateFormat.values()[random.nextInt(Temporal.DateFormat.values().length)], separator());
                 case 10 -> new Layout.Time(path, Temporal.TimeFormat.values()[random.nextInt(Temporal.TimeFormat.values().length)], separator());
                 case 0 -> new Layout.Text(path, 1 + random.nextInt(40), Optional.empty());
@@ -120,6 +121,11 @@ class LayoutPropertyTest {
                     int nanos = random.nextInt((int) Math.pow(10, shown)) * (int) Math.pow(10, 9 - shown);
                     yield twice(new WireValue.Timestamp(day.atTime(random.nextInt(24), random.nextInt(60), random.nextInt(60), nanos)));
                 }
+                case Layout.VarBytes v -> {
+                    byte[] bytes = new byte[random.nextInt(v.maxLength() + 1)];
+                    random.nextBytes(bytes);
+                    yield twice(new WireValue.Bytes(bytes));
+                }
                 case Layout.Bytes b -> {
                     byte[] bytes = new byte[random.nextInt(b.length() + 1)];
                     random.nextBytes(bytes);
@@ -159,6 +165,7 @@ class LayoutPropertyTest {
                 case Layout.Decimal d -> new WireValue.Decimal(BigDecimal.ZERO.setScale(d.scale()));
                 case Layout.Float f -> new WireValue.Float(0);
                 case Layout.Bytes b -> new WireValue.Bytes(new byte[b.length()]);
+                case Layout.VarBytes v -> new WireValue.Bytes(new byte[0]);
                 case Layout.Date d -> new WireValue.Date(d.format().lowest());
                 case Layout.Timestamp t -> new WireValue.Timestamp(java.time.LocalDateTime.of(1, 1, 1, 0, 0));
                 case Layout.Time t -> new WireValue.Time(java.time.LocalTime.MIDNIGHT);

@@ -2,6 +2,7 @@ package ai.generativearchitects.slay400.gateway.ibmi;
 
 import ai.generativearchitects.slay400.pcml.api.ApiOperation;
 import ai.generativearchitects.slay400.pcml.api.FieldBinding;
+import ai.generativearchitects.slay400.pcml.api.SemanticType;
 import ai.generativearchitects.slay400.pcml.codec.WireValue;
 import ai.generativearchitects.slay400.pcml.model.Count;
 import ai.generativearchitects.slay400.pcml.model.FieldDef;
@@ -160,15 +161,23 @@ public final class ProgramLayout {
         return switch (field.wire()) {
             case WireType.Char c -> {
                 if (c.ccsid().isPresent() && c.ccsid().get() == NO_CONVERSION) {
-                    problems.add(path + ": a char field with CCSID 65535 holds bytes, which slay400-core cannot carry as bytes yet");
-                    yield null;
+                    // Raw bytes (C273): copied, never converted; with type string, text in the job's CCSID.
+                    boolean text = binding.semanticType().filter(type -> type == SemanticType.STRING).isPresent();
+                    yield fixed(c.length(), path, problems).map(length -> text ? (Layout) new Layout.Text(path, length, Optional.empty())
+                            : (Layout) new Layout.Bytes(path, length)).orElse(null);
                 }
                 yield fixed(c.length(), path, problems).map(length -> (Layout) new Layout.Text(path, length, c.ccsid())).orElse(null);
             }
             case WireType.VarChar v -> {
                 if (v.ccsid().isPresent() && v.ccsid().get() == NO_CONVERSION) {
-                    problems.add(path + ": a varchar field with CCSID 65535 holds bytes, which slay400-core cannot carry as bytes yet");
-                    yield null;
+                    int prefix = v.varLength().orElse(2);
+                    if (prefix != 2 && prefix != 4) {
+                        problems.add(path + ": a varchar length prefix of " + prefix + " bytes is not supported");
+                        yield null;
+                    }
+                    boolean text = binding.semanticType().filter(type -> type == SemanticType.STRING).isPresent();
+                    yield fixed(v.length(), path, problems).map(length -> text ? (Layout) new Layout.VarText(path, length, prefix, Optional.empty())
+                            : (Layout) new Layout.VarBytes(path, length, prefix)).orElse(null);
                 }
                 int prefix = v.varLength().orElse(2);
                 if (prefix != 2 && prefix != 4) {

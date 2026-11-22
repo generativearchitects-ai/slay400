@@ -223,7 +223,7 @@ class ProgramLayoutTest {
     }
 
     @Test
-    void timestampsOfTheLengthsARealSystemReturnedAndCharacterDataWithCcsid65535() {
+    void timestampsOfTheLengthsOfTheOneTextForm() {
         ProgramLayout layout = ProgramLayout.of(IbmiFixtures.operation(dir, "TSOK", IbmiFixtures.pcml("TSOK", "", """
                     <data name="S6" type="timestamp" usage="output"/>
                     <data name="S0" type="timestamp" length="19" usage="output"/>
@@ -236,14 +236,25 @@ class ProgramLayoutTest {
         assertThat(unsupported("TSNO", "", CHAR_OUT + "    <data name=\"S\" type=\"timestamp\" length=\"20\" usage=\"output\"/>\n"
                 + "    <data name=\"T\" type=\"timestamp\" length=\"18\" usage=\"output\"/>\n"
                 + "    <data name=\"U\" type=\"timestamp\" length=\"33\" usage=\"output\"/>\n"
-                + "    <data name=\"B\" type=\"char\" length=\"4\" ccsid=\"65535\" usage=\"output\"/>\n"
-                + "    <data name=\"V\" type=\"varchar\" length=\"4\" ccsid=\"65535\" usage=\"output\"/>\n", "")).containsExactly(
+, "")).containsExactly(
                 "S: a timestamp of length 20 is not a length of the one timestamp text a system returned (19, or 21 to 32)",
                 "T: a timestamp of length 18 is not a length of the one timestamp text a system returned (19, or 21 to 32)",
-                "U: a timestamp of length 33 is not a length of the one timestamp text a system returned (19, or 21 to 32)",
-                "B: a char field with CCSID 65535 holds bytes, which slay400-core cannot carry as bytes yet",
-                "V: a varchar field with CCSID 65535 holds bytes, which slay400-core cannot carry as bytes yet");
+                "U: a timestamp of length 33 is not a length of the one timestamp text a system returned (19, or 21 to 32)");
         assertThat(unsupported("TS500", "", "    <data name=\"C\" type=\"char\" length=\"4\" ccsid=\"500\" usage=\"output\"/>\n", "")).isEmpty();
+    }
+
+    @Test
+    void characterDataWithCcsid65535IsBytesUnlessTheOverlaySaysString() {
+        ProgramLayout layout = ProgramLayout.of(operations.get("tstbytes"));
+        assertThat(layout.parameters()).extracting(ProgramLayout.Parameter::layout).containsExactly(new Layout.Bytes("INBYTES", 8),
+                new Layout.Bytes("OUTFIXED", 16), new Layout.VarBytes("OUTVAR2", 32, 2), new Layout.VarBytes("OUTVAR4", 32, 4),
+                new Layout.Text("OUTTEXT", 8, java.util.Optional.empty()));
+        ApiOperation text = IbmiFixtures.operation(dir, "TVSTR", IbmiFixtures.pcml("TVSTR", "",
+                "    <data name=\"V\" type=\"varchar\" length=\"6\" varlength=\"4\" ccsid=\"65535\" usage=\"output\"/>\n", ""),
+                OVERLAY.formatted("TVSTR", "TVSTR") + "parameters:\n  V: { type: string }\n").orElseThrow();
+        assertThat(ProgramLayout.of(text).parameters().get(0).layout()).isEqualTo(new Layout.VarText("V", 6, 4, java.util.Optional.empty()));
+        assertThat(ProgramLayout.unsupported(withWire(new WireType.VarChar(new Length.Fixed(4), Optional.of(3), Optional.of(65535)), new Count.None())))
+                .containsExactly("SECONDS: a varchar length prefix of 3 bytes is not supported");
     }
 
     @Test
