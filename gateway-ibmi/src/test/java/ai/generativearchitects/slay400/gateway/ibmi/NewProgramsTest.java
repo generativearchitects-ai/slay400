@@ -48,7 +48,7 @@ class NewProgramsTest {
     static final String EXPECTED_DATES = "{\"isoNext\":\"2026-11-19\",\"isoLow\":\"0001-01-01\",\"isoHigh\":\"9999-12-31\",\"mdyLow\":\"1940-01-01\",\"mdyHigh\":\"2039-12-31\",\"eurDate\":\"2026-11-18\",\"julDate\":\"2026-11-18\",\"ymdDot\":\"2026-11-18\",\"hmsNext\":\"11:15:30\",\"usaTime\":\"10:15:00\",\"eurTime\":\"10:15:30\"}";
 
     /** The answer of program counts that GatewayIT expects from the real system too. */
-    static final String EXPECTED_COUNTS = "{\"items\":[\"ITEM1\",\"ITEM2\",\"ITEM3\"],\"box\":{\"count\":3,\"lines\":[\"LINE1\",\"LINE2\",\"LINE3\",\"\",\"\"]}}";
+    static final String EXPECTED_COUNTS = "{\"items\":[\"ITEM1\",\"ITEM2\",\"ITEM3\"],\"box\":{\"count\":3,\"lines\":[\"LINE1\",\"LINE2\",\"LINE3\"]}}";
 
     /** The answer of program 8 that GatewayIT expects from the real system too. */
     static final String EXPECTED_FLOATS = "{\"out4\":\"3.0\",\"out8\":\"2.5\",\"fixed4\":\"-1.5\",\"fixed8\":\"12500000000\"}";
@@ -174,6 +174,34 @@ class NewProgramsTest {
         RuntimeResponse response = get("/acme/test/counts", "wanted", "3");
         assertThat(response.status()).isEqualTo(200);
         assertThat(body(response)).isEqualTo(EXPECTED_COUNTS);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"0,0,0", "1,1,1", "3,3,3", "5,5,5", "7,7,5", "10,10,5"})
+    void program10TrimsTheLinesByTheCountInTheirOwnStructAtEveryFillLevel(int wanted, int items, int lines) {
+        program("tstcounts", in -> {
+            int n = ((WireValue.Integer) in.get(0)).value().intValueExact();
+            List<WireValue> itemValues = new ArrayList<>();
+            for (int i = 1; i <= 10; i++) {
+                itemValues.add(text(i <= n ? "ITEM" + i : ""));
+            }
+            List<WireValue> lineValues = new ArrayList<>();
+            for (int i = 1; i <= 5; i++) {
+                lineValues.add(text(i <= Math.min(n, 5) ? "LINE" + i : ""));
+            }
+            return List.of(in.get(0), whole(Integer.toString(n)), new WireValue.Array(itemValues),
+                    new WireValue.Struct(List.of(whole(Integer.toString(Math.min(n, 5))), new WireValue.Array(lineValues))));
+        });
+        String json = body(get("/acme/test/counts", "wanted", Integer.toString(wanted)));
+        StringBuilder expectedItems = new StringBuilder();
+        for (int i = 1; i <= items; i++) {
+            expectedItems.append(i == 1 ? "" : ",").append("\"ITEM").append(i).append('"');
+        }
+        StringBuilder expectedLines = new StringBuilder();
+        for (int i = 1; i <= lines; i++) {
+            expectedLines.append(i == 1 ? "" : ",").append("\"LINE").append(i).append('"');
+        }
+        assertThat(json).isEqualTo("{\"items\":[" + expectedItems + "],\"box\":{\"count\":" + lines + ",\"lines\":[" + expectedLines + "]}}");
     }
 
     @Test

@@ -17,4 +17,6 @@ parameters:
     name: box
     fields:
       N: { name: count, type: integer }
-      LINES: { name: lines }
+      LINES:
+        name: lines
+        trim: { countField: N }

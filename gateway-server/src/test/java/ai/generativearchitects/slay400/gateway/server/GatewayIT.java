@@ -146,7 +146,7 @@ class GatewayIT {
 
             Answer counts = send(port, "GET", "/acme/test/counts?wanted=3", null);
             assertThat(counts.status()).isEqualTo(200);
-            assertThat(counts.body()).isEqualTo("{\"items\":[\"ITEM1\",\"ITEM2\",\"ITEM3\"],\"box\":{\"count\":3,\"lines\":[\"LINE1\",\"LINE2\",\"LINE3\",\"\",\"\"]}}");
+            assertThat(counts.body()).isEqualTo("{\"items\":[\"ITEM1\",\"ITEM2\",\"ITEM3\"],\"box\":{\"count\":3,\"lines\":[\"LINE1\",\"LINE2\",\"LINE3\"]}}");
 
             // Programs 11 and 12 and the timestamp probe (kickoff 05). Every midnight and end of the day reads as 00:00:00 (decision
             // 123); the highest timestamp reads as the last instant the field can show (decision 125).
