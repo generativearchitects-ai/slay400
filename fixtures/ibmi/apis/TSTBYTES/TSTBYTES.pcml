@@ -1,0 +1,13 @@
+<pcml version="7.0">
+   <!-- RPG program: TSTBYTES  -->
+   <!-- created: 2026-11-22-21.01.12 -->
+   <!-- source: /home/<user>/gateway-ibmi-test/TSTBYTES.rpgle -->
+   <!-- 8 -->
+   <program name="TSTBYTES" path="/QSYS.LIB/OWNERLIB.LIB/TSTBYTES.PGM">
+      <data name="INBYTES" type="char" length="8" ccsid="65535" usage="input" />
+      <data name="OUTFIXED" type="char" length="16" ccsid="65535" usage="inputoutput" />
+      <data name="OUTVAR2" type="varchar" length="32" ccsid="65535" usage="inputoutput" />
+      <data name="OUTVAR4" type="varchar" length="32" varlength="4" ccsid="65535" usage="inputoutput" />
+      <data name="OUTTEXT" type="char" length="8" ccsid="65535" usage="inputoutput" />
+   </program>
+</pcml>

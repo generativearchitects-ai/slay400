@@ -1,0 +1,13 @@
+program: TSTBYTES
+pcml: TSTBYTES.pcml
+route: /bytes
+method: POST
+version: 1.0.0
+summary: Returns raw bytes computed from the input, fixed and varying, and one field read as text (invented test program)
+
+parameters:
+  INBYTES: { name: inBytes }
+  OUTFIXED: { direction: response, name: fixed }
+  OUTVAR2: { direction: response, name: varying2 }
+  OUTVAR4: { direction: response, name: varying4 }
+  OUTTEXT: { direction: response, name: asText, type: string }

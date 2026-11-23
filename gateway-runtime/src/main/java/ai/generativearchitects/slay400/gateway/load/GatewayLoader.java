@@ -190,7 +190,10 @@ public final class GatewayLoader {
                                 operation.source()));
                     }
                     if (issues.isEmpty()) {
-                        compiled.put(operation, new CompiledOperation(operation, HttpBinding.of(operation, limits), OperationCodec.of(operation)));
+                        // The limit of the bundle is the limit of the call (kickoff 06).
+                        int maxResponseValues = bundle.model().defaults().maxResponseValues();
+                        compiled.put(operation, new CompiledOperation(operation, HttpBinding.of(operation, limits), OperationCodec.of(operation, maxResponseValues),
+                                maxResponseValues));
                         try {
                             MockDefinition definition = definitions.get(operation.id());
                             mocks.put(operation, definition == null ? MockProgram.of(operation) : MockProgram.of(operation, definition));

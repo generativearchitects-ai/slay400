@@ -120,10 +120,20 @@ class LayoutTest {
 
     @Test
     void bytesThatAreNotAPackedNumberAreALayoutException() {
-        assertThatThrownBy(() -> new Layout.Decimal("P.QTY", 5, 0, true).read(bytes("404040"), 0, CCSID_37)).isInstanceOf(LayoutException.class)
+        assertThatThrownBy(() -> new Layout.Decimal("P.QTY", 5, 0, true).read(bytes("A0000F"), 0, CCSID_37)).isInstanceOf(LayoutException.class)
                 .hasMessage("P.QTY: the bytes are not a valid packed number");
-        assertThatThrownBy(() -> new Layout.Decimal("P.QTY", 3, 0, false).read(bytes("404040"), 0, CCSID_37)).isInstanceOf(LayoutException.class)
+        assertThatThrownBy(() -> new Layout.Decimal("P.QTY", 3, 0, false).read(bytes("FAF0F0"), 0, CCSID_37)).isInstanceOf(LayoutException.class)
                 .hasMessage("P.QTY: the bytes are not a valid zoned number");
+    }
+
+    @Test
+    void aDecimalOfAllBlanksReadsAsBlank() {
+        // Run 1, program 15: RPG leaves a packed field declared without inz as blanks.
+        assertThat(new Layout.Decimal("P.QTY", 5, 2, true).read(bytes("404040"), 0, CCSID_37)).isEqualTo(new WireValue.Blank());
+        assertThat(new Layout.Decimal("P.QTY", 3, 0, false).read(bytes("404040"), 0, CCSID_37)).isEqualTo(new WireValue.Blank());
+        // Only the field's own bytes count.
+        assertThat(new Layout.Decimal("P.QTY", 1, 0, true).read(bytes("00000F40"), 3, CCSID_37)).isEqualTo(new WireValue.Blank());
+        assertThat(new Layout.Decimal("P.QTY", 1, 0, true).read(bytes("401F40"), 1, CCSID_37)).isEqualTo(new WireValue.Decimal(new java.math.BigDecimal("1")));
     }
 
     @ParameterizedTest

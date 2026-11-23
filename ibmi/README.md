@@ -18,6 +18,10 @@ deterministic behaviour that a test can assert. Names and values are made up.
 | `TSTMIDNGT` | times in ISO, HMS, USA and EUR; timestamps | each input time unchanged, the lowest and highest time of each format, a second USA input; the input timestamp one second later, the lowest and highest timestamp |
 | `TSTFORMAT` | dates in DMY, USA, JIS and MDY with a comma and a blank; times in JIS and HMS with a comma and a blank | the input date and time in each |
 | `TSTSTMP12`, `TSTLONGJUL`, `TSTCYMD`, `TSTCMDY`, `TSTCDMY` | one field each: a timestamp of 12 and 0 fraction digits; a date in `*LONGJUL`, `*CYMD`, `*CMDY`, `*CDMY` | probes of what the language allows as a parameter: the input comes back in the field |
+| `TSTUSAMID` | USA and ISO times | an ISO midnight in USA, and the USA inputs `12:00 AM` and `00:00 AM` in ISO |
+| `TSTBYTES` | raw bytes (`ccsid(*hex)`): fixed, varying with a 2- and a 4-byte prefix | the input followed by its complement; its first five bytes; the input twice; the input again, read by the overlay as text |
+| `TSTMEMBER` | an array of four structs, each with its own count and three items | group i gets the count of input i and items `Iij` up to it |
+| `TSTCLEARED` | three arrays of a struct of char, packed, ISO and YMD dates, time and timestamp | the first elements filled as the input says; the rest as `clear`, `inz` and a declaration without `inz` leave them |
 
 The PCML the compiler wrote for each program, as the setup tool brought it back (decision 119), and the overlay of its API,
 are in `fixtures/ibmi/apis/<PROGRAM>/`; programs 6 to 10 get theirs from their first run. `fixtures/ibmi/apis/TSTNONE` describes a program that is never created.

@@ -1,0 +1,30 @@
+program: TSTCLEARED
+pcml: TSTCLEARED.pcml
+route: /cleared
+method: GET
+version: 1.0.0
+summary: Returns three arrays of records, filled as asked and left as clear, inz and no inz leave the rest (invented test program)
+
+parameters:
+  FILLED: { name: filled, type: integer, required: true }
+  CLEARED:
+    direction: response
+    name: cleared
+    trim: { dropBlank: true }
+    fields: &record
+      NAME: { name: name }
+      AMOUNT: { name: amount, type: decimal }
+      ISODATE: { name: isoDate }
+      YMDDATE: { name: ymdDate }
+      ATTIME: { name: atTime }
+      STAMP: { name: stamp }
+  INZD:
+    direction: response
+    name: inzd
+    trim: { dropBlank: true }
+    fields: *record
+  UNTOUCHED:
+    direction: response
+    name: untouched
+    trim: { dropBlank: true }
+    fields: *record

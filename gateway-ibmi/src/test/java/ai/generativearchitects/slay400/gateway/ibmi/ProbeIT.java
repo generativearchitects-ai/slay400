@@ -18,11 +18,11 @@ import org.w3c.dom.Node;
 
 /**
  * A probe of what the gateway cannot ask through its layout: how the system writes and reads midnight in the USA time format
- * (kickoff 05). It is called with the raw
+ * (kickoff 05), and the bytes of the programs of kickoff 06 before their fixtures exist. It is called with the raw
  * call: its inputs as text written by hand in the job's CCSID, each output in a buffer of {@value #BUFFER} zero bytes, so that
  * the report shows exactly how many bytes the system writes and what text. The parameters are read from the compiler's PCML
  * that the setup tool of the same run brought back; a program without PCML did not compile, which the report says.
- * One call, one connection.
+ * Four calls, one connection. A struct parameter shows all its bytes up to the last non-zero one, as hexadecimal only.
  */
 @EnabledIfEnvironmentVariable(named = IbmiSystem.HOST, matches = ".+")
 @EnabledIfEnvironmentVariable(named = IbmiSystem.USER, matches = ".+")
@@ -30,7 +30,7 @@ import org.w3c.dom.Node;
 @EnabledIfEnvironmentVariable(named = IbmiSystem.LIBRARY, matches = ".+")
 class ProbeIT {
 
-    static final int BUFFER = 48;
+    static final int BUFFER = 512;
 
     /** One call: a program and the text of each of its inputs. */
     record Probe(String program, String what, Map<String, String> inputs) {
@@ -84,7 +84,8 @@ class ProbeIT {
                 for (Parameter parameter : parameters) {
                     String text = probe.inputs().get(parameter.name());
                     if (parameter.usage().equals("input")) {
-                        bytes.add(ParameterBytes.in((byte[]) new AS400Text(text.length(), ccsid).toBytes(text)));
+                        bytes.add(ParameterBytes.in(text.startsWith("x:") ? HexFormat.of().parseHex(text.substring(2))
+                                : (byte[]) new AS400Text(text.length(), ccsid).toBytes(text)));
                     } else {
                         bytes.add(new ParameterBytes(Optional.of(new byte[BUFFER]), BUFFER));
                     }
@@ -115,7 +116,10 @@ class ProbeIT {
                         end--;
                     }
                     String hex = HexFormat.of().withUpperCase().formatHex(returned, 0, end);
-                    String text = end == 0 ? "" : (String) new AS400Text(end, ccsid).toObject(java.util.Arrays.copyOf(returned, end));
+                    boolean characters = "char".equals(parameter.attributes().get("type")) && !"65535".equals(parameter.attributes().get("ccsid"))
+                            || "date".equals(parameter.attributes().get("type")) || "time".equals(parameter.attributes().get("type"))
+                            || "timestamp".equals(parameter.attributes().get("type"));
+                    String text = end == 0 || !characters ? "" : (String) new AS400Text(end, ccsid).toObject(java.util.Arrays.copyOf(returned, end));
                     report.append("| ").append(parameter.name()).append(" | `").append(shown).append("` | | `").append(hex).append("` (").append(end).append(" bytes) | `")
                             .append(text).append("` |\n");
                 }

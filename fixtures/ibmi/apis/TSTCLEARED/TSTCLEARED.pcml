@@ -1,0 +1,21 @@
+<pcml version="7.0">
+   <!-- RPG program: TSTCLEARED  -->
+   <!-- created: 2026-11-22-21.01.16 -->
+   <!-- source: /home/<user>/gateway-ibmi-test/TSTCLEARED.rpgle -->
+   <!-- 7 -->
+   <struct name="REC_T">
+      <data name="NAME" type="char" length="4" usage="inherit" />
+      <data name="AMOUNT" type="packed" length="5" precision="2" usage="inherit" />
+      <data name="ISODATE" type="date" dateformat="ISO" dateseparator="hyphen" usage="inherit" />
+      <data name="YMDDATE" type="date" dateformat="YMD" dateseparator="slash" usage="inherit" />
+      <data name="ATTIME" type="time" timeformat="ISO" timeseparator="period" usage="inherit" />
+      <data name="STAMP" type="timestamp" usage="inherit" />
+   </struct>
+   <!-- 16 -->
+   <program name="TSTCLEARED" path="/QSYS.LIB/OWNERLIB.LIB/TSTCLEARED.PGM">
+      <data name="FILLED" type="int" length="4" precision="31" usage="input" />
+      <data name="CLEARED" type="struct" struct="REC_T" count="3" usage="inputoutput" />
+      <data name="INZD" type="struct" struct="REC_T" count="3" usage="inputoutput" />
+      <data name="UNTOUCHED" type="struct" struct="REC_T" count="3" usage="inputoutput" />
+   </program>
+</pcml>

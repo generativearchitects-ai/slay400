@@ -1,0 +1,18 @@
+<pcml version="7.0">
+   <!-- RPG program: TSTMEMBER  -->
+   <!-- created: 2026-11-22-21.01.14 -->
+   <!-- source: /home/<user>/gateway-ibmi-test/TSTMEMBER.rpgle -->
+   <!-- 6 -->
+   <struct name="GROUP_T">
+      <data name="N" type="int" length="4" precision="31" usage="inherit" />
+      <data name="ITEMS" type="char" length="4" count="3" usage="inherit" />
+   </struct>
+   <!-- 11 -->
+   <program name="TSTMEMBER" path="/QSYS.LIB/OWNERLIB.LIB/TSTMEMBER.PGM">
+      <data name="FILL1" type="int" length="4" precision="31" usage="input" />
+      <data name="FILL2" type="int" length="4" precision="31" usage="input" />
+      <data name="FILL3" type="int" length="4" precision="31" usage="input" />
+      <data name="FILL4" type="int" length="4" precision="31" usage="input" />
+      <data name="GROUPS" type="struct" struct="GROUP_T" count="4" usage="inputoutput" />
+   </program>
+</pcml>

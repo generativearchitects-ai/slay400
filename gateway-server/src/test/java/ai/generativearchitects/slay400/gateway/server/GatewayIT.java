@@ -146,7 +146,7 @@ class GatewayIT {
 
             Answer counts = send(port, "GET", "/acme/test/counts?wanted=3", null);
             assertThat(counts.status()).isEqualTo(200);
-            assertThat(counts.body()).isEqualTo("{\"items\":[\"ITEM1\",\"ITEM2\",\"ITEM3\"],\"box\":{\"count\":3,\"lines\":[\"LINE1\",\"LINE2\",\"LINE3\",\"\",\"\"]}}");
+            assertThat(counts.body()).isEqualTo("{\"items\":[\"ITEM1\",\"ITEM2\",\"ITEM3\"],\"box\":{\"count\":3,\"lines\":[\"LINE1\",\"LINE2\",\"LINE3\"]}}");
 
             // Programs 11 and 12 and the timestamp probe (kickoff 05). Every midnight and end of the day reads as 00:00:00 (decision
             // 123); the highest timestamp reads as the last instant the field can show (decision 125).
@@ -166,6 +166,27 @@ class GatewayIT {
             Answer stamps = send(port, "POST", "/acme/test/stamps", "{\"inStamp\":\"2026-11-19T10:15:30.123456789\"}");
             assertThat(stamps.status()).isEqualTo(200);
             assertThat(stamps.body()).isEqualTo("{\"outStamp\":\"2026-11-19T10:15:30.123456789\",\"outStamp0\":\"2026-11-19T10:15:30\"}");
+
+            // Programs 13 to 15 (kickoff 06). Bytes in base64; the last field read as text in the job CCSID (273 on the test
+            // system, as in Kickoff06ProgramsTest).
+            Answer bytes = send(port, "POST", "/acme/test/bytes", "{\"inBytes\":\"AP9/gMHwQA0=\"}");
+            assertThat(bytes.status()).isEqualTo(200);
+            assertThat(bytes.body()).isEqualTo("{\"fixed\":\"AP9/gMHwQA3/AIB/Pg+/8g==\",\"varying2\":\"AP9/gME=\",\"varying4\":\"AP9/gMHwQA0A/3+AwfBADQ==\","
+                    + "\"asText\":\"\\u0000\u009f\\\"\u00d8A0 \\r\"}");
+
+            Answer groups = send(port, "GET", "/acme/test/groups?fill1=0&fill2=1&fill3=2&fill4=3", null);
+            assertThat(groups.status()).isEqualTo(200);
+            assertThat(groups.body()).isEqualTo("{\"groups\":[{\"count\":0,\"items\":[]},{\"count\":1,\"items\":[\"I21\"]},{\"count\":2,\"items\":[\"I31\",\"I32\"]},"
+                    + "{\"count\":3,\"items\":[\"I41\",\"I42\",\"I43\"]}]}");
+
+            // Each array trimmed to its two filled elements: after clear, after inz, and without inz (all blanks, the packed
+            // amount too, reads as blank).
+            String records = "[{\"name\":\"R1\",\"amount\":\"1.25\",\"isoDate\":\"2026-11-23\",\"ymdDate\":\"2026-11-23\",\"atTime\":\"10:01:00\","
+                    + "\"stamp\":\"2026-11-22T10:00:01\"},{\"name\":\"R2\",\"amount\":\"2.50\",\"isoDate\":\"2026-11-24\",\"ymdDate\":\"2026-11-24\","
+                    + "\"atTime\":\"10:02:00\",\"stamp\":\"2026-11-22T10:00:02\"}]";
+            Answer cleared = send(port, "GET", "/acme/test/cleared?filled=2", null);
+            assertThat(cleared.status()).isEqualTo(200);
+            assertThat(cleared.body()).isEqualTo("{\"cleared\":" + records + ",\"inzd\":" + records + ",\"untouched\":" + records + "}");
         } finally {
             server.stop();
             started.close();
