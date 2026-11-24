@@ -416,6 +416,6 @@ class PipelineTest {
         gateway.handle(get("/acme/test/orders/1001/status"));
         assertThat(log).hasSize(1);
         assertThat(log.get(0)).doesNotContain("\n").matches("\\{\"time\":\"[^\"]+\",\"tenant\":\"acme\",\"environment\":\"test\",\"operation\":\"ordstatus\","
-                + "\"method\":\"GET\",\"route\":\"/orders/\\{orderNumber}/status\",\"status\":200,\"durationMs\":[0-9]+,\"correlationId\":\"[^\"]+\"}");
+                + "\"method\":\"GET\",\"route\":\"/orders/\\{orderNumber}/status\",\"bundle\":\"shop\",\"bundleVersion\":\"1.0.0\",\"status\":200,\"durationMs\":[0-9]+,\"correlationId\":\"[^\"]+\"}");
     }
 }

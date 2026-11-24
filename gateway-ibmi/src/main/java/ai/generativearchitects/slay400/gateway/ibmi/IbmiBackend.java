@@ -2,6 +2,8 @@ package ai.generativearchitects.slay400.gateway.ibmi;
 
 import ai.generativearchitects.slay400.gateway.call.BackendProvider;
 import ai.generativearchitects.slay400.gateway.call.BackendStart;
+import ai.generativearchitects.slay400.gateway.call.OpenBackend;
+import ai.generativearchitects.slay400.gateway.call.ProgramCaller;
 import ai.generativearchitects.slay400.gateway.config.Backend;
 import ai.generativearchitects.slay400.gateway.config.EnvironmentConfig;
 import ai.generativearchitects.slay400.gateway.config.IbmiSettings;
@@ -17,7 +19,7 @@ import java.util.function.Function;
  * The {@code ibmi} backend: program calls on IBM i through JT400, with the raw call for every operation (decision 114). It
  * opens one bounded pool of connections per tenant and environment. At start, unless the connect check is turned off, it opens
  * one connection, which resolves the host, signs on and sets the library list, without calling a program; that connection
- * serves the first call.
+ * serves the first call. The pool is kept across reloads of the bundles; the layouts are built again for each set.
  */
 public final class IbmiBackend implements BackendProvider {
 
@@ -59,10 +61,6 @@ public final class IbmiBackend implements BackendProvider {
     @Override
     public BackendStart start(String tenant, EnvironmentConfig environment, List<ApiOperation> operations, boolean connectCheck) {
         IbmiSettings settings = environment.ibmi().orElseThrow(() -> new IllegalArgumentException("not an ibmi environment"));
-        Map<ApiOperation, ProgramLayout> layouts = new IdentityHashMap<>();
-        for (ApiOperation operation : operations) {
-            layouts.put(operation, ProgramLayout.of(operation));
-        }
         String where = "tenant " + tenant + ", environment " + environment.name();
         ConnectionPool pool = new ConnectionPool(connectors.apply(settings), settings.maxConnections(), poolWait, where);
         if (connectCheck) {
@@ -73,6 +71,43 @@ public final class IbmiBackend implements BackendProvider {
                 return BackendStart.failed(List.of(ConnectionPool.describe(failure)));
             }
         }
-        return BackendStart.opened(new IbmiCaller(layouts, pool, timeout.apply(settings), new Redactor(settings), where));
+        return BackendStart.opened(new Environment(pool, timeout.apply(settings), new Redactor(settings), where));
+    }
+
+    /**
+     * The open backend of one environment: its pool, kept across reloads. Each set of bundles gets a caller with its own
+     * layouts over this pool.
+     */
+    static final class Environment implements OpenBackend {
+        private final ConnectionPool pool;
+        private final Duration timeout;
+        private final Redactor redactor;
+        private final String where;
+
+        Environment(ConnectionPool pool, Duration timeout, Redactor redactor, String where) {
+            this.pool = pool;
+            this.timeout = timeout;
+            this.redactor = redactor;
+            this.where = where;
+        }
+
+        /** The pool of the environment, the same object for every set. */
+        ConnectionPool pool() {
+            return pool;
+        }
+
+        @Override
+        public ProgramCaller callerFor(List<ApiOperation> operations) {
+            Map<ApiOperation, ProgramLayout> layouts = new IdentityHashMap<>();
+            for (ApiOperation operation : operations) {
+                layouts.put(operation, ProgramLayout.of(operation));
+            }
+            return new IbmiCaller(layouts, pool, timeout, redactor, where);
+        }
+
+        @Override
+        public void close() {
+            pool.close();
+        }
     }
 }

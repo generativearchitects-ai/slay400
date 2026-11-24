@@ -16,13 +16,22 @@ import java.util.Optional;
  * @param operationId   the operation, if a route matched
  * @param method        the method if the gateway serves it, otherwise {@code OTHER}
  * @param routeTemplate the route template, if a route matched
+ * @param bundle        the name of the bundle of the operation, if a route matched (kickoff 07)
+ * @param bundleVersion the version of that bundle
  * @param status        the HTTP status
  * @param durationMs    how long the request took, in milliseconds
  * @param correlationId the correlation id
  * @param problemCodes  the codes of the problems that made the response, if any
  */
 public record AccessRecord(Instant time, Optional<String> tenant, Optional<String> environment, Optional<String> operationId, String method,
-                           Optional<String> routeTemplate, int status, long durationMs, String correlationId, List<String> problemCodes) {
+                           Optional<String> routeTemplate, Optional<String> bundle, Optional<String> bundleVersion, int status, long durationMs,
+                           String correlationId, List<String> problemCodes) {
+
+    /** A record without a bundle. */
+    public AccessRecord(Instant time, Optional<String> tenant, Optional<String> environment, Optional<String> operationId, String method,
+                        Optional<String> routeTemplate, int status, long durationMs, String correlationId, List<String> problemCodes) {
+        this(time, tenant, environment, operationId, method, routeTemplate, Optional.empty(), Optional.empty(), status, durationMs, correlationId, problemCodes);
+    }
 
     /** @throws NullPointerException if an argument is {@code null} */
     public AccessRecord {
@@ -32,6 +41,8 @@ public record AccessRecord(Instant time, Optional<String> tenant, Optional<Strin
         Objects.requireNonNull(operationId, "operationId");
         Objects.requireNonNull(method, "method");
         Objects.requireNonNull(routeTemplate, "routeTemplate");
+        Objects.requireNonNull(bundle, "bundle");
+        Objects.requireNonNull(bundleVersion, "bundleVersion");
         Objects.requireNonNull(correlationId, "correlationId");
         problemCodes = List.copyOf(problemCodes);
     }
@@ -45,6 +56,8 @@ public record AccessRecord(Instant time, Optional<String> tenant, Optional<Strin
         operationId.ifPresent(o -> out.append(",\"operation\":").append(quote(o)));
         out.append(",\"method\":").append(quote(method));
         routeTemplate.ifPresent(r -> out.append(",\"route\":").append(quote(r)));
+        bundle.ifPresent(b -> out.append(",\"bundle\":").append(quote(b)));
+        bundleVersion.ifPresent(v -> out.append(",\"bundleVersion\":").append(quote(v)));
         out.append(",\"status\":").append(status).append(",\"durationMs\":").append(durationMs);
         out.append(",\"correlationId\":").append(quote(correlationId));
         if (!problemCodes.isEmpty()) {

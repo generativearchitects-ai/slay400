@@ -172,7 +172,7 @@ public final class ConfigReader {
     }
 
     private Optional<GatewayConfig> top(Node root) {
-        Optional<Map<String, Node>> entries = entries(root, Set.of("server", "tenants"), "The configuration");
+        Optional<Map<String, Node>> entries = entries(root, Set.of("server", "reload", "tenants"), "The configuration");
         if (entries.isEmpty()) {
             return Optional.empty();
         }
@@ -198,6 +198,17 @@ public final class ConfigReader {
                 }
             }
         }
+        int reloadInterval = GatewayConfig.DEFAULT_RELOAD_INTERVAL_SECONDS;
+        Node reload = entries.get().get("reload");
+        if (reload != null) {
+            Optional<Map<String, Node>> settings = entries(reload, Set.of("intervalSeconds"), "The section reload");
+            if (settings.isPresent()) {
+                Node intervalNode = settings.get().get("intervalSeconds");
+                if (intervalNode != null) {
+                    reloadInterval = whole(intervalNode, "reload.intervalSeconds", 0, GatewayConfig.MAX_RELOAD_INTERVAL_SECONDS).orElse(reloadInterval);
+                }
+            }
+        }
         List<TenantConfig> tenants = new ArrayList<>();
         Node tenantsNode = entries.get().get("tenants");
         if (tenantsNode == null) {
@@ -210,7 +221,7 @@ public final class ConfigReader {
         if (!problems.isEmpty()) {
             return Optional.empty();
         }
-        return Optional.of(new GatewayConfig(host, port, tenants, file));
+        return Optional.of(new GatewayConfig(host, port, tenants, file, reloadInterval));
     }
 
     private Optional<Integer> port(Node node) {
@@ -240,12 +251,12 @@ public final class ConfigReader {
         if (bundlesNode == null) {
             error("GWY005", "The tenant " + safe(name) + " has no key bundles", at(keyNode));
         } else if (!(bundlesNode instanceof SequenceNode sequence)) {
-            error("GWY003", "bundles must be a list of file names", at(bundlesNode));
+            error("GWY003", "bundles must be a list of bundle files or folders", at(bundlesNode));
         } else if (sequence.getValue().isEmpty()) {
             error("GWY004", "The list bundles of the tenant " + safe(name) + " is empty", at(bundlesNode));
         } else {
             for (Node item : sequence.getValue()) {
-                text(item, "a bundle file name").ifPresent(value -> {
+                text(item, "a bundle file or folder name").ifPresent(value -> {
                     try {
                         bundles.add(file.toAbsolutePath().getParent().resolve(value).normalize());
                         sources.add(at(item));

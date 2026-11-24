@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
  *   <tr><td>The connection broke during the call; returned bytes that are not a value</td><td>{@code Failed} (502)</td></tr>
  * </table>
  *
+ * <p>The pool belongs to the environment ({@link IbmiBackend.Environment}), which closes it; the caller closes nothing.
+ *
  * <p>The operator's log gets message ids and the first-level text of IBM i messages, with the host, user, password and
  * libraries taken out; the caller gets neither. No parameter value is logged at any level.
  */
@@ -109,10 +111,5 @@ final class IbmiCaller implements ProgramCaller {
                 }
             }
         };
-    }
-
-    @Override
-    public void close() {
-        pool.close();
     }
 }

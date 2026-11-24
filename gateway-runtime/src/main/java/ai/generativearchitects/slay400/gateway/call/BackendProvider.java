@@ -22,13 +22,14 @@ public interface BackendProvider {
     List<String> unsupported(ApiOperation operation);
 
     /**
-     * Opens the backend of one environment. Called only when every other check of the start passed.
+     * Opens the backend of one environment. Called once, at start, and only when every other check of the start passed; the
+     * backend is kept across reloads of the bundles (kickoff 07).
      *
      * @param tenant       the tenant of the environment
      * @param environment  the environment, with its backend settings
-     * @param operations   every operation the environment serves
+     * @param operations   every operation the environment serves at start
      * @param connectCheck whether to check, as far as possible without calling a program, that the backend can be reached
-     * @return the caller, or the problems that stop the start; a message never contains a host, a user, a password or a library
+     * @return the open backend, or the problems that stop the start; a message never contains a host, a user, a password or a library
      */
     BackendStart start(String tenant, EnvironmentConfig environment, List<ApiOperation> operations, boolean connectCheck);
 }

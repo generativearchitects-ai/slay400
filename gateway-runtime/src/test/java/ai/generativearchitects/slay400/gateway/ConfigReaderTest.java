@@ -262,4 +262,39 @@ class ConfigReaderTest {
         ConfigResult unknown = read("\"x\\u0007y\": 1\n");
         assertThat(unknown.diagnostics().get(0).message()).isEqualTo("Unknown key x?y");
     }
+
+    // ---- reload (kickoff 07)
+
+    @Test
+    void theReloadIntervalIsTenSecondsByDefault() {
+        assertThat(read(minimal("")).config().orElseThrow().reloadIntervalSeconds()).isEqualTo(10);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0", "1", "3600"})
+    void theReloadIntervalBoundariesAreAccepted(int seconds) {
+        assertThat(read(minimal("reload:\n  intervalSeconds: " + seconds + "\n")).config().orElseThrow().reloadIntervalSeconds()).isEqualTo(seconds);
+    }
+
+    @ParameterizedTest
+    @CsvSource(value = {"-1|GWY006", "3601|GWY006", "ten|GWY006", "1.5|GWY006", "[1]|GWY003", "{ a: 1 }|GWY003", "\"\"|GWY004"}, delimiter = '|')
+    void aReloadIntervalOutsideTheLimitsOrOfTheWrongTypeIsRefused(String value, String code) {
+        ConfigResult result = read(minimal("reload:\n  intervalSeconds: " + value + "\n"));
+        assertThat(result.config()).isEmpty();
+        assertThat(codes(result)).isEqualTo(code);
+    }
+
+    @Test
+    void theReloadSectionHasOneKey() {
+        assertThat(codes(read(minimal("reload:\n  every: 5\n")))).isEqualTo("GWY002");
+        assertThat(codes(read(minimal("reload: 5\n")))).isEqualTo("GWY003");
+        assertThat(codes(read(minimal("reload:\n")))).isEqualTo("GWY004");
+        assertThat(read(minimal("reload:\n  intervalSeconds: 6\n")).diagnostics()).isEmpty();
+    }
+
+    @Test
+    void theRefusalOfABadIntervalSaysTheLimits() {
+        assertThat(read(minimal("reload:\n  intervalSeconds: 3601\n")).diagnostics().get(0).message())
+                .isEqualTo("reload.intervalSeconds must be a whole number from 0 to 3600");
+    }
 }

@@ -35,15 +35,21 @@ No message, log line or `toString` names the host, the libraries, the user or th
 
 ## Behaviour
 
-- Every operation uses the raw call: one byte array per top-level parameter, laid out from the wire types of the descriptor.
-  Date, time and timestamp fields, counts and lengths that name another field, service program procedures and return values
-  are refused at start (GWY017) as not supported yet.
+- Every operation uses the raw call: one byte array per top-level parameter, laid out from the wire types of the descriptor
+  and the formats the compiler's PCML states. Counts and lengths that name another field, the `byte` type, service program
+  procedures, return values, and date and time formats no real system has returned (decision 121) are refused at start
+  (GWY017).
 - The program is called as `/QSYS.LIB/%LIBL%.LIB/<name>.PGM`, through the library list of the environment, which is set on each
   connection when it is opened with `CHGLIBL LIBL(...) CURLIB(*CRTDFT)`. The library in the PCML is not used.
 - A connection is checked before use and replaced when broken. When no connection is free within 2 seconds, the call is 503.
 - Cannot connect, sign-on refused, no free connection: 503. No answer within `callTimeoutSeconds`: 504, and the connection is
   closed. Escape message or program not found: 502, with the message ids and first-level text in the operator's log only.
 - A refused sign-on is logged once at error level, without the user, and is not tried again until the gateway restarts.
+- Character data of CCSID 65535 (`ccsid(*hex)` in RPG) is bytes, base64 in JSON. With `type: string` in the overlay it is read
+  as text in the CCSID of the job: bytes that are control characters there end up as control characters in the JSON string,
+  escaped, which is the overlay author's choice.
+- The pool of an environment is opened once and kept for as long as the gateway runs: a reload of the bundles builds new
+  layouts over the same connections.
 - At start, each `ibmi` environment opens one connection (the host resolves, a connection opens, signs on and gets its library
   list) without calling a program. A failure stops the start (GWY018). `--no-connect-check` skips it.
 

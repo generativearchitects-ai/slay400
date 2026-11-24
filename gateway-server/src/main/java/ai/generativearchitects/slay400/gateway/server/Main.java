@@ -63,7 +63,7 @@ public final class Main {
         }
         Path config = arguments.get().config();
         StartResult result = GatewayLoader.load(config, System::getenv, System.out::println,
-                new StartOptions(List.of(new IbmiBackend()), arguments.get().connectCheck()));
+                new StartOptions(List.of(new IbmiBackend()), arguments.get().connectCheck()).withEvents(System.out::println));
         if (!result.diagnostics().isEmpty()) {
             System.err.print(TextReport.render(new Report("start", config.getParent(), result.diagnostics())));
         }
@@ -74,6 +74,8 @@ public final class Main {
         Started started = result.started().get();
         var server = HelidonServer.start(started);
         System.out.println(started.startLine());
+        // The bundle files are polled from now on; the configuration file is not read again (kickoff 07).
+        started.startReloading();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             server.stop();
             started.close();

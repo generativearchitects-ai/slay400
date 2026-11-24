@@ -14,7 +14,7 @@ import java.util.Objects;
  * @param maxResponseValues the most scalar values a response of the operation may hold: {@code defaults.maxResponseValues} of
  *                          the operation's bundle
  */
-public record CompiledOperation(ApiOperation operation, HttpBinding binding, OperationCodec codec, int maxResponseValues) {
+public record CompiledOperation(ApiOperation operation, HttpBinding binding, OperationCodec codec, int maxResponseValues, String bundle, String bundleVersion) {
 
     /**
      * @throws NullPointerException     if an argument is {@code null}
@@ -27,10 +27,17 @@ public record CompiledOperation(ApiOperation operation, HttpBinding binding, Ope
         if (maxResponseValues < 1) {
             throw new IllegalArgumentException("maxResponseValues must be at least 1");
         }
+        Objects.requireNonNull(bundle, "bundle");
+        Objects.requireNonNull(bundleVersion, "bundleVersion");
+    }
+
+    /** An operation of no named bundle, for tests: the access line then carries no bundle. */
+    public CompiledOperation(ApiOperation operation, HttpBinding binding, OperationCodec codec, int maxResponseValues) {
+        this(operation, binding, codec, maxResponseValues, "", "");
     }
 
     /** An operation whose codec has the default limit of {@code slay400-core}. */
     public CompiledOperation(ApiOperation operation, HttpBinding binding, OperationCodec codec) {
-        this(operation, binding, codec, ai.generativearchitects.slay400.pcml.api.GatewayDefaults.DEFAULT_MAX_RESPONSE_VALUES);
+        this(operation, binding, codec, ai.generativearchitects.slay400.pcml.api.GatewayDefaults.DEFAULT_MAX_RESPONSE_VALUES, "", "");
     }
 }

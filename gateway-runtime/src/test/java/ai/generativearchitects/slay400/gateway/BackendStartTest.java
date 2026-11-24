@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import ai.generativearchitects.slay400.gateway.call.BackendProvider;
 import ai.generativearchitects.slay400.gateway.call.BackendStart;
 import ai.generativearchitects.slay400.gateway.call.CallOutcome;
+import ai.generativearchitects.slay400.gateway.call.OpenBackend;
 import ai.generativearchitects.slay400.gateway.call.ProgramCaller;
 import ai.generativearchitects.slay400.gateway.config.Backend;
 import ai.generativearchitects.slay400.gateway.config.EnvironmentConfig;
@@ -78,9 +79,17 @@ class BackendStartTest {
         }
     }
 
-    static final class FakeCaller implements ProgramCaller {
+    /** An open backend that is its own caller, for every set. */
+    static final class FakeCaller implements ProgramCaller, OpenBackend {
         final AtomicInteger calls = new AtomicInteger();
         final AtomicInteger closed = new AtomicInteger();
+        final List<Integer> callersFor = new ArrayList<>();
+
+        @Override
+        public ProgramCaller callerFor(List<ApiOperation> operations) {
+            callersFor.add(operations.size());
+            return this;
+        }
 
         @Override
         public CallOutcome call(ai.generativearchitects.slay400.gateway.call.CallContext context, ApiOperation operation,
@@ -140,6 +149,8 @@ class BackendStartTest {
         Started started = result.started().orElseThrow();
         assertThat(backend.calls).contains("start acme/test 2 false");
         assertThat(started.backends()).containsExactlyElementsOf(backend.opened);
+        // One caller for the set of the start, with every operation of the tenant.
+        assertThat(backend.opened.get(0).callersFor).containsExactly(2);
         assertThat(started.gateway().handle(new RuntimeRequest("GET", "/acme/test/orders/1001/status", Map.of(), Map.of(), Optional.empty(), () -> new byte[0])).status())
                 .isEqualTo(503);
         assertThat(backend.opened.get(0).calls).hasValue(1);
@@ -148,6 +159,20 @@ class BackendStartTest {
                 .isEqualTo(200);
         started.close();
         assertThat(backend.opened.get(0).closed).hasValue(1);
+    }
+
+    @Test
+    void eachEnvironmentCallsThroughItsOwnOpenBackend() {
+        FakeBackend backend = new FakeBackend();
+        Started started = start(config(ibmi("test"), ibmi("prod")), new StartOptions(List.of(backend), false)).started().orElseThrow();
+        assertThat(backend.opened).hasSize(2);
+        started.gateway().handle(new RuntimeRequest("GET", "/acme/prod/orders/1001/status", Map.of(), Map.of(), Optional.empty(), () -> new byte[0]));
+        started.gateway().handle(new RuntimeRequest("GET", "/acme/prod/orders/1001/status", Map.of(), Map.of(), Optional.empty(), () -> new byte[0]));
+        started.gateway().handle(new RuntimeRequest("GET", "/acme/test/orders/1001/status", Map.of(), Map.of(), Optional.empty(), () -> new byte[0]));
+        assertThat(backend.calls).containsSubsequence("start acme/test 2 false", "start acme/prod 2 false");
+        assertThat(backend.opened.get(0).calls).hasValue(1);
+        assertThat(backend.opened.get(1).calls).hasValue(2);
+        started.close();
     }
 
     @Test
@@ -167,11 +192,10 @@ class BackendStartTest {
     void closingTheGatewayClosesEveryBackendEvenWhenOneFails() {
         FakeBackend backend = new FakeBackend();
         Started started = start(config(ibmi("test")), new StartOptions(List.of(backend), true)).started().orElseThrow();
-        ProgramCaller failing = new ProgramCaller() {
+        OpenBackend failing = new OpenBackend() {
             @Override
-            public CallOutcome call(ai.generativearchitects.slay400.gateway.call.CallContext context, ApiOperation operation,
-                                    List<ai.generativearchitects.slay400.pcml.codec.WireValue> input) {
-                return new CallOutcome.Unavailable();
+            public ProgramCaller callerFor(List<ApiOperation> operations) {
+                throw new UnsupportedOperationException();
             }
 
             @Override
@@ -179,10 +203,9 @@ class BackendStartTest {
                 throw new IllegalStateException("cannot close");
             }
         };
-        Started two = new Started(started.config(), started.gateway(), 1, 2, List.of(failing, backend.opened.get(0)));
+        Started two = new Started(started.config(), started.gateway(), 1, 2, List.of(failing, backend.opened.get(0)), started.reloader());
         two.close();
         assertThat(backend.opened.get(0).closed).hasValue(1);
-        assertThat(new Started(started.config(), started.gateway(), 1, 2).backends()).isEmpty();
     }
 
     @Test
