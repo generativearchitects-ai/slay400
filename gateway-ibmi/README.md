@@ -44,6 +44,11 @@ No message, log line or `toString` names the host, the libraries, the user or th
 - Cannot connect, sign-on refused, no free connection: 503. No answer within `callTimeoutSeconds`: 504, and the connection is
   closed. Escape message or program not found: 502, with the message ids and first-level text in the operator's log only.
 - A refused sign-on is logged once at error level, without the user, and is not tried again until the gateway restarts.
+- Character data of CCSID 65535 (`ccsid(*hex)` in RPG) is bytes, base64 in JSON. With `type: string` in the overlay it is read
+  as text in the CCSID of the job: bytes that are control characters there end up as control characters in the JSON string,
+  escaped, which is the overlay author's choice.
+- The pool of an environment is opened once and kept for as long as the gateway runs: a reload of the bundles builds new
+  layouts over the same connections.
 - At start, each `ibmi` environment opens one connection (the host resolves, a connection opens, signs on and gets its library
   list) without calling a program. A failure stops the start (GWY018). `--no-connect-check` skips it.
 
