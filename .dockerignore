@@ -1,0 +1,4 @@
+# Only the distribution the Maven build wrote, and the licence, go into the image.
+*
+!gateway-server/target/dist/
+!LICENSE

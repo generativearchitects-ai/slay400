@@ -117,6 +117,60 @@ Every request answers 200. About two seconds after the copy the gateway logs
 `{"event":"reloaded","bundles":[{"tenant":"acme","name":"shop","version":"1.1.0"}],...}`, and from then on the access lines say
 `"bundleVersion":"1.1.0"`.
 
+## The container image
+
+The `Dockerfile` builds an image from the distribution of the Maven build; nothing is compiled in the image. The base image
+is Eclipse Temurin 21 (the Java runtime without a JDK) on Ubuntu 24.04, pinned by digest. The image runs as user 10001, needs
+no write access except a temporary folder, and holds no configuration, no bundle and no secret. It is not published.
+
+```
+./mvnw -B package -DskipTests
+docker build --build-arg REVISION=$(git rev-parse HEAD) -t gateway .
+```
+
+Fixed places in the container:
+
+| Path | What |
+|---|---|
+| `/etc/slay400/gateway.yaml` | the configuration; without it the gateway stops with GWY001 |
+| `/var/lib/slay400/bundles` | a folder for the bundles (name it in `bundles`) |
+| `/tmp` | the private copies of the bundles while they load: mount a small `tmpfs` |
+
+A configuration for the container listens on all addresses, and names the bundle folder and the certificate:
+
+```yaml
+server:
+  address: 0.0.0.0
+  port: 8443
+  tls:
+    certificate: /etc/slay400/tls/tls.crt
+    key: /etc/slay400/tls/tls.key
+management:
+  address: 0.0.0.0
+  port: 9090
+tenants:
+  acme:
+    bundles: [/var/lib/slay400/bundles]
+    environments:
+      test: { code: T0001, backend: mock }
+```
+
+```
+docker run --read-only --tmpfs /tmp:rw,size=300m \
+  -v $PWD/etc:/etc/slay400:ro \
+  -v $PWD/bundles:/var/lib/slay400/bundles:ro \
+  -p 8443:8443 -p 127.0.0.1:9090:9090 \
+  gateway
+```
+
+`etc/` holds `gateway.yaml` and `tls/tls.crt` and `tls/tls.key`, readable by user 10001. The `tmpfs` needs room for the
+largest set of bundles the gateway loads at once (each file is at most 132 MiB). New bundles and a new certificate are
+published by writing them into the mounted folders; the gateway takes them without a restart.
+
+**Stopping.** On `SIGTERM` (`docker stop`) the listeners stop taking connections, the requests in flight get up to 5 seconds
+to finish, then the poll thread stops and the backends close. The process exits with code 143. The default grace period of
+`docker stop`, 10 seconds, is enough.
+
 The project was called glow400 until 2026-11-16.
 
 Licence: Business Source License 1.1 with an Additional Use Grant.

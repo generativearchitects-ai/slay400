@@ -49,6 +49,12 @@ public final class HelidonServer {
     private HelidonServer() {
     }
 
+    /**
+     * How long a listener that stops waits for the requests in flight to finish: 5 seconds, so that a stop on SIGTERM ends well
+     * within the 10 seconds a container is given by default (kickoff 08).
+     */
+    static final java.time.Duration SHUTDOWN_GRACE = java.time.Duration.ofSeconds(5);
+
     /** The name of the management listener's socket. */
     static final String MANAGEMENT = "management";
 
@@ -103,7 +109,8 @@ public final class HelidonServer {
                 // request line without an answer instead of answering it 400.
                 .protocolsDiscoverServices(false)
                 .addProtocol(Http1Config.builder().maxPrologueLength(limits.maxRequestLineBytes()).maxHeadersSize(limits.maxHeadersBytes()).build())
-                .directHandlers(directHandlers(gateway));
+                .directHandlers(directHandlers(gateway))
+                .shutdownGracePeriod(SHUTDOWN_GRACE);
     }
 
     /** The management listener: the health paths, through the pipeline as on the API listener; anything else is 404. */
