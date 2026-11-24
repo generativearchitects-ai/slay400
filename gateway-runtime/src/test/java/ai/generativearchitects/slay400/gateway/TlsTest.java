@@ -35,6 +35,10 @@ class TlsTest {
         return TlsMaterial.load(new TlsSettings(certificate, key, Optional.ofNullable(password)), Instant.now());
     }
 
+    private static String day(TestCertificates.Pair pair) {
+        return pair.certificate().getNotAfter().toInstant().atOffset(java.time.ZoneOffset.UTC).toLocalDate().toString();
+    }
+
     private static String codes(List<Diagnostic> diagnostics) {
         return diagnostics.stream().map(Diagnostic::code).collect(Collectors.joining(","));
     }
@@ -50,13 +54,15 @@ class TlsTest {
     void anRsaAndAnEcPairLoad() {
         TestCertificates.Pair rsa = TestCertificates.rsa(dir, "rsa", 365);
         TestCertificates.Pair ec = TestCertificates.ec(dir, "ec", 365);
-        for (TestCertificates.Pair pair : List.of(rsa, ec)) {
+        TestCertificates.Pair pss = TestCertificates.rsaPss(dir, "pss", 365);
+        for (TestCertificates.Pair pair : List.of(rsa, ec, pss)) {
             TlsMaterial.Result result = load(pair.certificateFile(), pair.keyFile(), null);
             assertThat(result.diagnostics()).isEmpty();
             assertThat(result.material()).isPresent();
             assertThat(result.material().get().notAfter()).isEqualTo(pair.certificate().getNotAfter().toInstant());
-            assertThat(result.material().get().sslContext().getProtocol()).isEqualTo("TLS");
-            assertThat(result.material().get().toString()).doesNotContain(pair.keyText().substring(0, 40));
+            assertThat(result.material().get().privateKey()).isEqualTo(pair.key());
+            assertThat(result.material().get().certificateChain()).containsExactly(pair.certificate());
+            assertThat(result.material().get().toString()).isEqualTo("TlsMaterial[notAfter=" + pair.certificate().getNotAfter().toInstant() + "]");
         }
         assertThat(TlsMaterial.PROTOCOLS).containsExactly("TLSv1.3", "TLSv1.2");
     }
@@ -107,6 +113,10 @@ class TlsTest {
         Path junk = TestCertificates.pem(dir.resolve("junk.key"), "PRIVATE KEY", new byte[] {1, 2, 3});
         assertThat(load(pair.certificateFile(), junk, null).diagnostics()).extracting(Diagnostic::message)
                 .containsExactly("The key in junk.key is not an RSA, EC or EdDSA private key that can be read");
+        // At the bound the file is read (and holds no certificate); one byte more is refused unread.
+        Path bound = Files.write(dir.resolve("bound.crt"), new byte[1024 * 1024]);
+        assertThat(load(bound, pair.keyFile(), null).diagnostics()).extracting(Diagnostic::message)
+                .containsExactly("The certificate file bound.crt holds no PEM certificate (-----BEGIN CERTIFICATE-----)");
         Path large = Files.write(dir.resolve("large.crt"), new byte[1024 * 1024 + 1]);
         assertThat(load(large, pair.keyFile(), null).diagnostics()).extracting(Diagnostic::message).containsExactly("The certificate file large.crt is larger than 1048576 bytes");
         // Every refusal names its file in its location.
@@ -131,17 +141,18 @@ class TlsTest {
         TestCertificates.Pair expired = TestCertificates.rsaFrom(dir, "expired", -10, 5);
         TlsMaterial.Result old = load(expired.certificateFile(), expired.keyFile(), null);
         assertThat(codes(old.diagnostics())).isEqualTo("GWY024");
-        assertThat(old.diagnostics().get(0).message()).startsWith("The certificate in expired.crt expired on ");
+        assertThat(old.diagnostics().get(0).message()).isEqualTo("The certificate in expired.crt expired on " + day(expired));
         TestCertificates.Pair future = TestCertificates.rsaFrom(dir, "future", 10, 30);
         assertThat(load(future.certificateFile(), future.keyFile(), null).diagnostics()).extracting(Diagnostic::message)
-                .singleElement().asString().startsWith("The certificate in future.crt is not valid before ");
+                .containsExactly("The certificate in future.crt is not valid before "
+                        + future.certificate().getNotBefore().toInstant().atOffset(java.time.ZoneOffset.UTC).toLocalDate());
         TestCertificates.Pair soon = TestCertificates.rsa(dir, "soon", 10);
         TlsMaterial.Result near = load(soon.certificateFile(), soon.keyFile(), null);
         assertThat(near.material()).isPresent();
         assertThat(near.diagnostics()).singleElement().satisfies(d -> {
             assertThat(d.code()).isEqualTo("GWY025");
             assertThat(d.severity()).isEqualTo(Severity.WARNING);
-            assertThat(d.message()).startsWith("The certificate in soon.crt expires on ").endsWith(" days");
+            assertThat(d.message()).matches("The certificate in soon\\.crt expires on " + day(soon) + ", in (9|10) days");
         });
         // A certificate with more than 30 days left is no warning.
         TestCertificates.Pair later = TestCertificates.rsa(dir, "later", 40);

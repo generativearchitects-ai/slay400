@@ -116,6 +116,11 @@ public final class TestCertificates {
         return make(dir, name, List.of("-keyalg", "EC", "-groupname", "secp256r1", "-startdate", "-1d", "-validity", String.valueOf(days + 1)));
     }
 
+    /** An RSASSA-PSS certificate valid from yesterday for {@code days} days. */
+    public static Pair rsaPss(Path dir, String name, int days) {
+        return make(dir, name, List.of("-keyalg", "RSASSA-PSS", "-keysize", "2048", "-startdate", "-1d", "-validity", String.valueOf(days + 1)));
+    }
+
     /** An RSA certificate valid from {@code startDays} days from now (negative: in the past) for {@code days} days. */
     public static Pair rsaFrom(Path dir, String name, int startDays, int days) {
         return make(dir, name, List.of("-keyalg", "RSA", "-keysize", "2048", "-startdate", (startDays >= 0 ? "+" : "") + startDays + "d", "-validity",

@@ -12,11 +12,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
-import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.SecureRandom;
 import java.security.Signature;
-import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
@@ -36,8 +34,6 @@ import javax.crypto.Cipher;
 import javax.crypto.EncryptedPrivateKeyInfo;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
 
 /**
  * The certificate and key of the API listener, read from their PEM files and checked (kickoff 08): the certificate and its
@@ -62,12 +58,10 @@ public final class TlsMaterial {
 
     private static final Pattern BLOCK = Pattern.compile("-----BEGIN ([A-Z0-9 ]+)-----([A-Za-z0-9+/=\\s]*)-----END \\1-----");
 
-    private final SSLContext sslContext;
     private final PrivateKey key;
     private final List<X509Certificate> chain;
 
-    private TlsMaterial(SSLContext sslContext, PrivateKey key, List<X509Certificate> chain) {
-        this.sslContext = sslContext;
+    private TlsMaterial(PrivateKey key, List<X509Certificate> chain) {
         this.key = key;
         this.chain = List.copyOf(chain);
     }
@@ -80,11 +74,6 @@ public final class TlsMaterial {
             Objects.requireNonNull(material, "material");
             diagnostics = List.copyOf(diagnostics);
         }
-    }
-
-    /** The context of the listener, with this certificate and key. */
-    public SSLContext sslContext() {
-        return sslContext;
     }
 
     /**
@@ -138,21 +127,7 @@ public final class TlsMaterial {
             found.add(new Diagnostic("GWY025", Severity.WARNING, "The certificate in " + name(settings.certificate()) + " expires on " + day(notAfter)
                     + ", in " + left.toDays() + " days", location(settings.certificate())));
         }
-        try {
-            KeyStore store = KeyStore.getInstance("PKCS12");
-            store.load(null, null);
-            char[] none = new char[0];
-            store.setKeyEntry("listener", key.get(), none, chain.get().toArray(new Certificate[0]));
-            KeyManagerFactory managers = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            managers.init(store, none);
-            SSLContext context = SSLContext.getInstance("TLS");
-            context.init(managers.getKeyManagers(), null, null);
-            return new Result(Optional.of(new TlsMaterial(context, key.get(), chain.get())), found);
-        } catch (GeneralSecurityException | IOException e) {
-            found.add(error("GWY022", "The certificate in " + name(settings.certificate()) + " and the key in " + name(settings.key())
-                    + " cannot be used for TLS (" + e.getClass().getSimpleName() + ")", settings.certificate()));
-            return new Result(Optional.empty(), found);
-        }
+        return new Result(Optional.of(new TlsMaterial(key.get(), chain.get())), found);
     }
 
     private static Optional<List<X509Certificate>> certificates(Path file, List<Diagnostic> found) {
