@@ -29,7 +29,7 @@ import java.util.Objects;
  * that finds no change. The environments' open backends (connections, credentials) are kept; everything of the set is built
  * again: route tables, codecs, bindings, mocks and the layouts of the {@code ibmi} backend.
  *
- * <p>One daemon thread, {@value #THREAD_NAME}, polls; a poll that fails is logged and the next one still runs. {@link #poll()}
+ * <p>One daemon thread, {@value #THREAD_NAME}, polls; a poll that fails is logged once and the next one still runs. {@link #poll()}
  * may also be called directly, which is what the tests do.
  */
 public final class Reloader implements AutoCloseable {
@@ -52,6 +52,8 @@ public final class Reloader implements AutoCloseable {
     private BundleListing previous;
     private BundleListing refused;
     private Map<String, List<String>> refusedContent;
+    /** The exception of the last poll, as class and message, while polls fail; {@code null} after a poll that succeeded. */
+    private String failure;
 
     private final Object lifecycle = new Object();
     private Thread thread;
@@ -78,13 +80,25 @@ public final class Reloader implements AutoCloseable {
 
     /**
      * Looks at the bundle files once and, if the rules say so, loads and serves the new set. Never throws: a failure is
-     * logged, and the next poll starts from the same state.
+     * logged once, with its exception, and again only when it changes or after a poll succeeded, which is logged in one line;
+     * the next poll starts from the same state.
      */
     public synchronized void poll() {
         try {
             pollOnce();
         } catch (IOException | RuntimeException e) {
-            LOG.log(System.Logger.Level.WARNING, "The bundle files could not be polled (" + e.getClass().getSimpleName() + "); the running set stays", e);
+            // Reported once: again only when the failure changes, or after a poll that succeeded (review of PR #8).
+            String what = e.getClass().getName() + ": " + e.getMessage();
+            if (!what.equals(failure)) {
+                failure = what;
+                LOG.log(System.Logger.Level.WARNING, "The bundle files could not be polled (" + e.getClass().getSimpleName()
+                        + "); the running set stays. The polls go on; this is reported again only if the failure changes", e);
+            }
+            return;
+        }
+        if (failure != null) {
+            failure = null;
+            LOG.log(System.Logger.Level.INFO, "The bundle files can be polled again");
         }
     }
 

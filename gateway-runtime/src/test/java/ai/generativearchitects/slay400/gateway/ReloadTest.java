@@ -774,11 +774,11 @@ class ReloadTest {
     }
 
     @Test
-    void aPollThatFailsIsLoggedAndTheNextOneStillRuns() {
+    void aFailingPollIsReportedOnceAgainWhenItChangesAndTheRecoveryInOneLine() throws IOException {
         Path file = place(orders("1.0.0", "S"), dir.resolve("bundles/orders.rpgapi"));
-        AtomicInteger listings = new AtomicInteger();
+        java.util.concurrent.atomic.AtomicReference<IOException> failing = new java.util.concurrent.atomic.AtomicReference<>();
         BundleFiles system = BundleFiles.system();
-        BundleFiles failingOnce = new BundleFiles() {
+        BundleFiles volume = new BundleFiles() {
             @Override
             public boolean isFolder(Path path) {
                 return system.isFolder(path);
@@ -786,8 +786,9 @@ class ReloadTest {
 
             @Override
             public List<Path> bundlesIn(Path folder) throws IOException {
-                if (listings.incrementAndGet() == 2) {
-                    throw new IOException("the volume went away");
+                IOException failure = failing.get();
+                if (failure != null) {
+                    throw failure;
                 }
                 return system.bundlesIn(folder);
             }
@@ -802,14 +803,40 @@ class ReloadTest {
                 system.copy(path, to);
             }
         };
-        Started started = start(config("./bundles"), StartOptions.mockOnly().withFiles(failingOnce)).started().orElseThrow();
-        place(orders("2.0.0", "H"), file);
+        Started started = start(config("./bundles"), StartOptions.mockOnly().withFiles(volume)).started().orElseThrow();
         try (LogCapture log = new LogCapture("slay400.gateway")) {
-            started.reloader().poll();
-            assertThat(warnings(log)).hasSize(1);
-            assertThat(warnings(log).get(0)).contains("could not be polled (IOException)");
+            // A volume that went away: one warning, with its exception, however many polls fail.
+            failing.set(new IOException("the volume went away"));
+            for (int i = 0; i < 5; i++) {
+                started.reloader().poll();
+            }
+            assertThat(log.lines()).hasSize(1);
+            assertThat(log.lines().get(0).level()).isEqualTo(Level.WARNING);
+            assertThat(log.lines().get(0).message()).isEqualTo("The bundle files could not be polled (IOException); the running set stays. "
+                    + "The polls go on; this is reported again only if the failure changes");
             assertThat(log.lines().get(0).thrown()).isEqualTo(IOException.class.getName());
+            // Another failure is reported, once.
+            failing.set(new java.nio.file.AccessDeniedException("bundles"));
+            started.reloader().poll();
+            started.reloader().poll();
+            assertThat(log.lines()).hasSize(2);
+            assertThat(log.lines().get(1).message()).contains("(AccessDeniedException)");
+            // The recovery is one line, and the next poll that succeeds logs nothing.
+            failing.set(null);
+            started.reloader().poll();
+            started.reloader().poll();
+            assertThat(log.lines()).hasSize(3);
+            assertThat(log.lines().get(2).level()).isEqualTo(Level.INFO);
+            assertThat(log.lines().get(2).message()).isEqualTo("The bundle files can be polled again");
+            // After a poll that succeeded, the same failure as before is reported again.
+            failing.set(new IOException("the volume went away"));
+            started.reloader().poll();
+            assertThat(log.lines()).hasSize(4);
+            assertThat(log.lines().get(3).level()).isEqualTo(Level.WARNING);
         }
+        // Polling still works: a new version is served once the volume is back.
+        failing.set(null);
+        place(orders("2.0.0", "H"), file);
         settle(started);
         assertThat(status(started)).isEqualTo(HELD);
         started.close();
