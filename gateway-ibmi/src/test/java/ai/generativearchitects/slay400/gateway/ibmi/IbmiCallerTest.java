@@ -6,6 +6,7 @@ import ai.generativearchitects.slay400.gateway.LogCapture;
 import ai.generativearchitects.slay400.gateway.call.BackendStart;
 import ai.generativearchitects.slay400.gateway.call.CallContext;
 import ai.generativearchitects.slay400.gateway.call.CallOutcome;
+import ai.generativearchitects.slay400.gateway.call.OpenBackend;
 import ai.generativearchitects.slay400.gateway.call.ProgramCaller;
 import ai.generativearchitects.slay400.gateway.config.Backend;
 import ai.generativearchitects.slay400.gateway.config.Credentials;
@@ -63,7 +64,7 @@ class IbmiCallerTest {
     }
 
     static ProgramCaller caller(FakeIbmi fake) {
-        return start(fake, 1, Duration.ofSeconds(5), true).caller().orElseThrow();
+        return start(fake, 1, Duration.ofSeconds(5), true).backend().orElseThrow().callerFor(List.copyOf(operations.values()));
     }
 
     static List<WireValue> input(String id, Map<String, ApiValue> request) {
@@ -109,7 +110,7 @@ class IbmiCallerTest {
         FakeIbmi fake = new FakeIbmi();
         fake.openFailure = new IbmiFailure(IbmiFailure.Kind.UNREACHABLE, "the host name does not resolve");
         BackendStart start = start(fake, 1, Duration.ofSeconds(5), true);
-        assertThat(start.caller()).isEmpty();
+        assertThat(start.backend()).isEmpty();
         assertThat(start.problems()).containsExactly("the host cannot be reached (the host name does not resolve)");
     }
 
@@ -117,7 +118,7 @@ class IbmiCallerTest {
     void withoutTheConnectCheckNothingIsOpenedAtStartAndAnUnreachableHostIsUnavailable() {
         FakeIbmi fake = new FakeIbmi();
         fake.openFailure = new IbmiFailure(IbmiFailure.Kind.UNREACHABLE, "ConnectException");
-        ProgramCaller caller = start(fake, 1, Duration.ofSeconds(5), false).caller().orElseThrow();
+        ProgramCaller caller = start(fake, 1, Duration.ofSeconds(5), false).backend().orElseThrow().callerFor(List.copyOf(operations.values()));
         assertThat(fake.opened).hasValue(0);
         try (LogCapture log = new LogCapture("slay400.gateway.ibmi")) {
             assertThat(caller.call(CONTEXT, operations.get("tstwait"), waitInput())).isEqualTo(new CallOutcome.Unavailable());
@@ -133,7 +134,7 @@ class IbmiCallerTest {
     void aRefusedSignOnIsLoggedOnceAtErrorAndNeverTriedAgain() {
         FakeIbmi fake = new FakeIbmi();
         fake.openFailure = new IbmiFailure(IbmiFailure.Kind.SIGN_ON_REFUSED, "return code 2");
-        ProgramCaller caller = start(fake, 2, Duration.ofSeconds(5), false).caller().orElseThrow();
+        ProgramCaller caller = start(fake, 2, Duration.ofSeconds(5), false).backend().orElseThrow().callerFor(List.copyOf(operations.values()));
         try (LogCapture log = new LogCapture("slay400.gateway.ibmi")) {
             for (int i = 0; i < 5; i++) {
                 assertThat(caller.call(CONTEXT, operations.get("tstwait"), waitInput())).isEqualTo(new CallOutcome.Unavailable());
@@ -201,7 +202,7 @@ class IbmiCallerTest {
             release.await(5, TimeUnit.SECONDS);
             return FakeIbmi.completed(parameters);
         };
-        ProgramCaller caller = start(fake, 3, Duration.ofSeconds(5), false).caller().orElseThrow();
+        ProgramCaller caller = start(fake, 3, Duration.ofSeconds(5), false).backend().orElseThrow().callerFor(List.copyOf(operations.values()));
         List<Thread> threads = new ArrayList<>();
         for (int i = 0; i < 3; i++) {
             threads.add(Thread.ofVirtual().start(() -> caller.call(CONTEXT, operations.get("tstwait"), waitInput())));
@@ -246,7 +247,7 @@ class IbmiCallerTest {
             never.await(10, TimeUnit.SECONDS);
             return FakeIbmi.completed(parameters);
         };
-        ProgramCaller caller = start(fake, 1, Duration.ofMillis(150), true).caller().orElseThrow();
+        ProgramCaller caller = start(fake, 1, Duration.ofMillis(150), true).backend().orElseThrow().callerFor(List.copyOf(operations.values()));
         long started = System.nanoTime();
         try (LogCapture log = new LogCapture("slay400.gateway.ibmi")) {
             assertThat(caller.call(CONTEXT, operations.get("tstwait"), waitInput())).isEqualTo(new CallOutcome.TimedOut());
@@ -323,7 +324,8 @@ class IbmiCallerTest {
     void anOperationTheBackendWasNotStartedWithIsFailed() {
         FakeIbmi fake = new FakeIbmi();
         IbmiBackend backend = new IbmiBackend(settings -> fake, Duration.ofMillis(200), settings -> Duration.ofSeconds(1));
-        ProgramCaller caller = backend.start("acme", environment(1), List.of(operations.get("tstwait")), false).caller().orElseThrow();
+        ProgramCaller caller = backend.start("acme", environment(1), List.of(operations.get("tstwait")), false).backend().orElseThrow()
+                .callerFor(List.of(operations.get("tstwait")));
         assertThat(caller.call(CONTEXT, operations.get("tstnone"), List.of(new WireValue.Text(" ")))).isEqualTo(new CallOutcome.Failed("the operation tstnone has no layout"));
     }
 
@@ -350,10 +352,14 @@ class IbmiCallerTest {
     // ---- closing
 
     @Test
-    void closingTheCallerClosesIdleConnectionsAndThoseGivenBackLater() throws Exception {
+    void closingTheBackendClosesIdleConnectionsAndThoseGivenBackLater() throws Exception {
         FakeIbmi fake = new FakeIbmi();
-        ProgramCaller caller = start(fake, 2, Duration.ofSeconds(5), true).caller().orElseThrow();
+        OpenBackend backend = start(fake, 2, Duration.ofSeconds(5), true).backend().orElseThrow();
+        ProgramCaller caller = backend.callerFor(List.copyOf(operations.values()));
+        // A caller holds nothing of its own: closing it closes no connection.
         caller.close();
+        assertThat(fake.connections.get(0).closed).hasValue(0);
+        backend.close();
         assertThat(fake.connections.get(0).closed).hasValue(1);
         assertThat(caller.call(CONTEXT, operations.get("tstwait"), waitInput())).isEqualTo(new CallOutcome.Unavailable());
         // A call that was running when the gateway stopped closes its connection when it ends.
@@ -365,13 +371,30 @@ class IbmiCallerTest {
             release.await(5, TimeUnit.SECONDS);
             return FakeIbmi.completed(parameters);
         };
-        ProgramCaller running = start(other, 1, Duration.ofSeconds(5), false).caller().orElseThrow();
+        OpenBackend runningBackend = start(other, 1, Duration.ofSeconds(5), false).backend().orElseThrow();
+        ProgramCaller running = runningBackend.callerFor(List.copyOf(operations.values()));
         Thread call = Thread.ofVirtual().start(() -> running.call(CONTEXT, operations.get("tstwait"), waitInput()));
         assertThat(inside.await(5, TimeUnit.SECONDS)).isTrue();
-        running.close();
+        runningBackend.close();
         release.countDown();
         call.join(5000);
         assertThat(other.connections.get(0).closed).hasValue(1);
+    }
+
+    @Test
+    void everySetGetsItsOwnCallerOverTheSamePool() {
+        FakeIbmi fake = new FakeIbmi();
+        IbmiBackend.Environment backend = (IbmiBackend.Environment) start(fake, 1, Duration.ofSeconds(5), true).backend().orElseThrow();
+        ProgramCaller first = backend.callerFor(List.of(operations.get("tstwait")));
+        ProgramCaller second = backend.callerFor(List.copyOf(operations.values()));
+        assertThat(second).isNotSameAs(first);
+        // Both call through the one connection the start opened; the first set's caller still works after the second exists.
+        assertThat(first.call(CONTEXT, operations.get("tstwait"), waitInput())).isInstanceOf(CallOutcome.Returned.class);
+        assertThat(second.call(CONTEXT, operations.get("tstwait"), waitInput())).isInstanceOf(CallOutcome.Returned.class);
+        assertThat(fake.opened).hasValue(1);
+        // The layouts are those of each set.
+        assertThat(first.call(CONTEXT, operations.get("tstscalar"), List.of())).isEqualTo(new CallOutcome.Failed("the operation tstscalar has no layout"));
+        backend.close();
     }
 
     // ---- what is never logged
@@ -383,7 +406,7 @@ class IbmiCallerTest {
         List<CallReply> replies = new ArrayList<>(List.of(new CallReply.Escaped(List.of(new IbmiMessage("CPF0001", "Escape for " + USER + " in " + LIBRARY)))));
         fake.program = (path, parameters) -> replies.isEmpty() ? FakeIbmi.completed(parameters) : replies.remove(0);
         try (LogCapture ibmi = new LogCapture("slay400.gateway.ibmi"); LogCapture gateway = new LogCapture("slay400.gateway")) {
-            ProgramCaller caller = start(fake, 1, Duration.ofMillis(300), true).caller().orElseThrow();
+            ProgramCaller caller = start(fake, 1, Duration.ofMillis(300), true).backend().orElseThrow().callerFor(List.copyOf(operations.values()));
             List<WireValue> nested = input("tstnested", Map.of("key", new ApiValue.Text(marker)));
             List<WireValue> scalars = input("tstscalar", Map.of("text", new ApiValue.Text(marker + "TEXT"), "packed",
                     new ApiValue.Decimal(new java.math.BigDecimal("98765.43")), "zoned", new ApiValue.Integer(BigInteger.valueOf(98765)), "whole",

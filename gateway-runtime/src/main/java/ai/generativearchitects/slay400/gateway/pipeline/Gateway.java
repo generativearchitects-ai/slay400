@@ -38,6 +38,10 @@ import java.util.stream.Collectors;
  * (400), encoding (400), call (503, 504, or 502), decoding (502), business error (the mapped status), response. Every error
  * body is {@code application/problem+json}. An exception nobody expected is a 500 with no detail from the exception, and is
  * logged with its stack trace. {@link #handle} never throws.
+ *
+ * <p>The gateway serves one {@link ServedSet} at a time, behind one reference. A request reads it once, when it arrives, and is
+ * served entirely by that set: route, codec, layout and mock. {@link #serve} switches to another set at once; requests in
+ * flight finish on the set they started with, and none waits for a switch (kickoff 07).
  */
 public final class Gateway {
 
@@ -54,19 +58,40 @@ public final class Gateway {
     private static final Pattern CORRELATION = Pattern.compile("[A-Za-z0-9._-]{1,64}");
     private static final byte[] HEALTH_BODY = "{\"status\":\"ok\"}".getBytes(StandardCharsets.UTF_8);
 
-    private final Map<String, TenantRuntime> tenants;
+    private volatile ServedSet current;
     private final ReadLimits limits;
     private final Consumer<String> accessLog;
 
     /**
+     * @param served    what the gateway serves first
+     * @param limits    what a request body may be
+     * @param accessLog receives the one JSON line of every request
+     */
+    public Gateway(ServedSet served, ReadLimits limits, Consumer<String> accessLog) {
+        this.current = Objects.requireNonNull(served, "served");
+        this.limits = Objects.requireNonNull(limits, "limits");
+        this.accessLog = Objects.requireNonNull(accessLog, "accessLog");
+    }
+
+    /**
+     * A gateway over tenants of no named bundle, for tests.
+     *
      * @param tenants   the tenants by name
      * @param limits    what a request body may be
      * @param accessLog receives the one JSON line of every request
      */
     public Gateway(Map<String, TenantRuntime> tenants, ReadLimits limits, Consumer<String> accessLog) {
-        this.tenants = Map.copyOf(tenants);
-        this.limits = Objects.requireNonNull(limits, "limits");
-        this.accessLog = Objects.requireNonNull(accessLog, "accessLog");
+        this(new ServedSet(tenants, List.of()), limits, accessLog);
+    }
+
+    /** The set served now. */
+    public ServedSet served() {
+        return current;
+    }
+
+    /** Serves another set from now on: requests that arrive after this call are served by it. */
+    public void serve(ServedSet next) {
+        current = Objects.requireNonNull(next, "next");
     }
 
     /** The largest request body, in bytes; a reader of the body reads at most this plus one. */
@@ -87,7 +112,7 @@ public final class Gateway {
         Trace trace = new Trace();
         RuntimeResponse response;
         try {
-            response = process(request, correlationId, trace);
+            response = process(current, request, correlationId, trace);
         } catch (ClientGoneException e) {
             // Nobody receives this answer; the access line still records the request.
             LOG.log(System.Logger.Level.INFO, "The client went away while its body was read, correlation id " + correlationId);
@@ -102,7 +127,8 @@ public final class Gateway {
         }
         long millis = (System.nanoTime() - started) / 1_000_000;
         access(new AccessRecord(time, Optional.ofNullable(trace.tenant), Optional.ofNullable(trace.environment),
-                Optional.ofNullable(trace.operationId), method(request.method()), Optional.ofNullable(trace.route), response.status(), millis,
+                Optional.ofNullable(trace.operationId), method(request.method()), Optional.ofNullable(trace.route), Optional.ofNullable(trace.bundle),
+                Optional.ofNullable(trace.bundleVersion), response.status(), millis,
                 correlationId, trace.problems));
         return response;
     }
@@ -139,10 +165,13 @@ public final class Gateway {
         String environment;
         String operationId;
         String route;
+        String bundle;
+        String bundleVersion;
         final List<String> problems = new ArrayList<>();
     }
 
-    private RuntimeResponse process(RuntimeRequest request, String correlationId, Trace trace) {
+    private RuntimeResponse process(ServedSet set, RuntimeRequest request, String correlationId, Trace trace) {
+        Map<String, TenantRuntime> tenants = set.tenants();
         String path = request.rawPath();
         if (path.equals("/health/live") || path.equals("/health/ready")) {
             return health(request, correlationId);
@@ -173,6 +202,10 @@ public final class Gateway {
         CompiledOperation compiled = tenant.operations().get(found.operation());
         trace.operationId = found.operation().id();
         trace.route = found.operation().route();
+        if (!compiled.bundle().isEmpty()) {
+            trace.bundle = compiled.bundle();
+            trace.bundleVersion = compiled.bundleVersion();
+        }
 
         byte[] body = request.body().get();
         RequestResult read = compiled.binding().readRequest(

@@ -20,7 +20,10 @@ public interface ProgramCaller extends AutoCloseable {
      */
     CallOutcome call(CallContext context, ApiOperation operation, List<WireValue> input);
 
-    /** Releases what the implementation holds, such as connections. Called once, when the gateway stops; never throws. */
+    /**
+     * Releases what the caller itself holds. A caller of an {@link OpenBackend} holds nothing of its own: connections belong
+     * to the open backend, which closes them. Never throws.
+     */
     @Override
     default void close() {
     }
