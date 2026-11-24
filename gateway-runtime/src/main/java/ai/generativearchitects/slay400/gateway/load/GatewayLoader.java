@@ -57,7 +57,8 @@ import java.util.function.Function;
  * <ol>
  *   <li>read and check the configuration ({@code GWY001} to {@code GWY008});</li>
  *   <li>list the bundle entries: a folder stands for the bundle files directly in it, and must hold one ({@code GWY019}); copy
- *       every file once, privately ({@code GWY021});</li>
+ *       every file once, privately, up to a bound ({@code GWY021} for a file over it, or one that cannot be read or changes
+ *       while it is copied);</li>
  *   <li>read every bundle ({@code GWY010} when a bundle gives nothing, and the diagnostics of the reader);</li>
  *   <li>for every operation, {@code OperationCodec.check} must be empty ({@code GWY011}) and every injected parameter must
  *       have a value in the environment's configuration that fits its field ({@code GWY012});</li>
@@ -254,6 +255,11 @@ public final class GatewayLoader {
         // reader's own diagnostic.
         List<Bundle> bundles = new ArrayList<>();
         for (BundleListing.Listed listed : files) {
+            if (snapshot.tooLarge(listed.path())) {
+                found.add(error("GWY021", "The bundle file " + listed.path().getFileName() + " is larger than " + snapshot.maxFileBytes()
+                        + " bytes, more than any bundle can be; it is not read", listed.entry().at()));
+                continue;
+            }
             Optional<Path> copy = snapshot.copyOf(listed.path());
             BundleReadResult result = BundleReader.read(copy.orElse(listed.path()));
             found.addAll(copy.isPresent() ? named(result.diagnostics(), copy.get(), listed.path()) : result.diagnostics());

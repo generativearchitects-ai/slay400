@@ -25,24 +25,86 @@ import java.util.stream.Stream;
  */
 final class BundleSnapshot implements AutoCloseable {
 
+    /**
+     * The largest bundle file that is copied, in bytes: 132 MiB. The reader of the core accepts at most 128 MiB of entries in
+     * all (and 4,096 entries); a zip file holding them is larger only by its headers, at most about 600 bytes per entry, and by
+     * a fraction of a percent where an entry does not compress. A file over this bound cannot be a bundle the reader accepts,
+     * so it is refused without being copied whole into the temporary folder (review of PR #8). The core does not export its
+     * limits; the numbers are those of its {@code BundleFormat.Limits.STANDARD}.
+     */
+    static final long MAX_FILE_BYTES = 132L * 1024 * 1024;
+
+    /** What the content of a file over the bound is, in place of its hash. */
+    private static final String TOO_LARGE = "too-large";
+
     private final Path folder;
     private final Map<Path, Path> copies;
     private final Map<Path, String> hashes;
     private final boolean stable;
+    private final long maxFileBytes;
 
-    private BundleSnapshot(Path folder, Map<Path, Path> copies, Map<Path, String> hashes, boolean stable) {
+    private BundleSnapshot(Path folder, Map<Path, Path> copies, Map<Path, String> hashes, boolean stable, long maxFileBytes) {
         this.folder = folder;
         this.copies = copies;
         this.hashes = hashes;
         this.stable = stable;
+        this.maxFileBytes = maxFileBytes;
+    }
+
+    /** Thrown by the stream of a copy when more bytes arrive than the bound allows. */
+    private static final class TooLarge extends IOException {
+        TooLarge() {
+            super("over the bound");
+        }
+    }
+
+    /** Counts what is written, and stops at the bound. */
+    private static final class Bounded extends java.io.FilterOutputStream {
+        private final long max;
+        private long written;
+
+        Bounded(OutputStream out, long max) {
+            super(out);
+            this.max = max;
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            count(1);
+            out.write(b);
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            count(len);
+            out.write(b, off, len);
+        }
+
+        private void count(int bytes) throws TooLarge {
+            written += bytes;
+            if (written > max) {
+                throw new TooLarge();
+            }
+        }
     }
 
     /**
-     * Copies every file of the listing that exists into a new private folder.
+     * Copies every file of the listing that exists into a new private folder, each file at most {@link #MAX_FILE_BYTES}.
      *
      * @throws IOException if a file cannot be read or the copy cannot be written; nothing is left behind
      */
     static BundleSnapshot take(BundleListing listing, BundleFiles files) throws IOException {
+        return take(listing, files, MAX_FILE_BYTES);
+    }
+
+    /**
+     * Copies every file of the listing that exists into a new private folder. A file whose listed size is over the bound is
+     * not copied; one that grows over it while it is copied is not copied further. Either is {@link #tooLarge(Path) too large}.
+     *
+     * @param maxFileBytes the largest file copied, in bytes
+     * @throws IOException if a file cannot be read or the copy cannot be written; nothing is left behind
+     */
+    static BundleSnapshot take(BundleListing listing, BundleFiles files, long maxFileBytes) throws IOException {
         Path folder = Files.createTempDirectory("slay400-bundles-");
         Map<Path, Path> copies = new HashMap<>();
         Map<Path, String> hashes = new HashMap<>();
@@ -50,14 +112,22 @@ final class BundleSnapshot implements AutoCloseable {
         try {
             for (List<BundleListing.Listed> tenant : listing.tenants().values()) {
                 for (BundleListing.Listed listed : tenant) {
-                    if (listed.stamp().isEmpty() || copies.containsKey(listed.path())) {
+                    if (listed.stamp().isEmpty() || hashes.containsKey(listed.path())) {
+                        continue;
+                    }
+                    if (listed.stamp().get().size() > maxFileBytes) {
+                        hashes.put(listed.path(), TOO_LARGE);
                         continue;
                     }
                     // Under the file's own name, so that the reader's diagnostics name it as they name the original.
-                    Path copy = Files.createDirectory(folder.resolve(String.valueOf(copies.size()))).resolve(listed.path().getFileName());
+                    Path copy = Files.createDirectory(folder.resolve(String.valueOf(hashes.size()))).resolve(listed.path().getFileName());
                     MessageDigest digest = sha256();
-                    try (OutputStream out = new DigestOutputStream(Files.newOutputStream(copy), digest)) {
+                    try (OutputStream out = new Bounded(new DigestOutputStream(Files.newOutputStream(copy), digest), maxFileBytes)) {
                         files.copy(listed.path(), out);
+                    } catch (TooLarge e) {
+                        Files.deleteIfExists(copy);
+                        hashes.put(listed.path(), TOO_LARGE);
+                        continue;
                     }
                     copies.put(listed.path(), copy);
                     hashes.put(listed.path(), HexFormat.of().formatHex(digest.digest()));
@@ -70,7 +140,17 @@ final class BundleSnapshot implements AutoCloseable {
             delete(folder);
             throw e;
         }
-        return new BundleSnapshot(folder, copies, hashes, stable);
+        return new BundleSnapshot(folder, copies, hashes, stable, maxFileBytes);
+    }
+
+    /** Whether a file of the listing is over the bound, and so was not copied. */
+    boolean tooLarge(Path file) {
+        return TOO_LARGE.equals(hashes.get(file));
+    }
+
+    /** The bound of this snapshot, in bytes. */
+    long maxFileBytes() {
+        return maxFileBytes;
     }
 
     /** Whether every file had the stamp of the listing after it was copied: none was written to while it was read. */

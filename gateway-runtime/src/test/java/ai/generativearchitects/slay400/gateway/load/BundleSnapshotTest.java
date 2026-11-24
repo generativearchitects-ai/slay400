@@ -15,6 +15,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -103,5 +104,104 @@ class BundleSnapshotTest {
         }
         assertThat(copy).doesNotExist();
         assertThat(copy.getParent().getParent()).doesNotExist();
+    }
+
+    @Test
+    void theBoundIsThatOfTheLargestBundleTheReaderAccepts() {
+        assertThat(BundleSnapshot.MAX_FILE_BYTES).isEqualTo(132L * 1024 * 1024);
+    }
+
+    @Test
+    void aFileWhoseListedSizeIsOverTheBoundIsNotCopied() throws Exception {
+        Path small = Files.writeString(dir.resolve("small.rpgapi"), "AAAA");
+        Path large = Files.writeString(dir.resolve("large.rpgapi"), "BBBBB");
+        AtomicInteger copied = new AtomicInteger();
+        BundleFiles system = BundleFiles.system();
+        BundleFiles counting = new BundleFiles() {
+            @Override
+            public boolean isFolder(Path path) {
+                return system.isFolder(path);
+            }
+
+            @Override
+            public List<Path> bundlesIn(Path folder) throws IOException {
+                return system.bundlesIn(folder);
+            }
+
+            @Override
+            public Optional<Stamp> stamp(Path file) throws IOException {
+                return system.stamp(file);
+            }
+
+            @Override
+            public void copy(Path file, OutputStream to) throws IOException {
+                copied.incrementAndGet();
+                system.copy(file, to);
+            }
+        };
+        BundleListing listing = BundleListing.of(Map.of("acme", List.of(new BundleListing.Entry(small, false, AT), new BundleListing.Entry(large, false, AT))),
+                counting);
+        try (BundleSnapshot snapshot = BundleSnapshot.take(listing, counting, 4)) {
+            assertThat(snapshot.tooLarge(small)).isFalse();
+            assertThat(snapshot.copyOf(small)).isPresent();
+            assertThat(snapshot.tooLarge(large)).isTrue();
+            assertThat(snapshot.copyOf(large)).isEmpty();
+            // Only the small file was read at all.
+            assertThat(copied).hasValue(1);
+            assertThat(snapshot.content(listing).get("acme")).containsExactly(small + "\u0000" + sha256("AAAA"), large + "\u0000too-large");
+            assertThat(snapshot.maxFileBytes()).isEqualTo(4);
+        }
+    }
+
+    @Test
+    void aFileThatGrowsOverTheBoundWhileItIsCopiedIsStoppedAndNotKept() throws Exception {
+        Path first = Files.writeString(dir.resolve("first.rpgapi"), "A");
+        Path growing = Files.writeString(dir.resolve("growing.rpgapi"), "AB");
+        AtomicInteger written = new AtomicInteger();
+        BundleFiles system = BundleFiles.system();
+        // The listed size of growing.rpgapi is 2 bytes, but its copy goes on for a million, one byte at a time.
+        BundleFiles endless = new BundleFiles() {
+            @Override
+            public boolean isFolder(Path path) {
+                return system.isFolder(path);
+            }
+
+            @Override
+            public List<Path> bundlesIn(Path folder) throws IOException {
+                return system.bundlesIn(folder);
+            }
+
+            @Override
+            public Optional<Stamp> stamp(Path file) throws IOException {
+                return system.stamp(file);
+            }
+
+            @Override
+            public void copy(Path file, OutputStream to) throws IOException {
+                if (!file.equals(growing)) {
+                    system.copy(file, to);
+                    return;
+                }
+                for (int i = 0; i < 1_000_000; i++) {
+                    to.write('X');
+                    written.incrementAndGet();
+                }
+            }
+        };
+        BundleListing listing = BundleListing.of(Map.of("acme", List.of(new BundleListing.Entry(first, false, AT), new BundleListing.Entry(growing, false, AT))),
+                endless);
+        Path folder;
+        try (BundleSnapshot snapshot = BundleSnapshot.take(listing, endless, 10)) {
+            assertThat(snapshot.tooLarge(first)).isFalse();
+            assertThat(snapshot.tooLarge(growing)).isTrue();
+            assertThat(snapshot.copyOf(growing)).isEmpty();
+            // The copy stopped at the bound, and nothing of it is kept.
+            assertThat(written).hasValue(10);
+            folder = snapshot.copyOf(first).orElseThrow().getParent().getParent();
+            try (var files = Files.walk(folder)) {
+                assertThat(files.filter(Files::isRegularFile).toList()).containsExactly(snapshot.copyOf(first).get());
+            }
+        }
+        assertThat(folder).doesNotExist();
     }
 }

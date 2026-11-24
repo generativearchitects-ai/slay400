@@ -290,6 +290,52 @@ class ReloadTest {
         assertThat(result.diagnostics().get(0).message()).isEqualTo("A bundle folder or file cannot be read (AccessDeniedException)");
     }
 
+    /** The largest bundle file the gateway copies: 132 MiB. */
+    private static final long BOUND = 132L * 1024 * 1024;
+
+    /** A file of {@code size} bytes that takes no room on disk where the file system allows it. */
+    private Path sparse(Path file, long size) throws IOException {
+        Files.createDirectories(file.getParent());
+        try (java.io.RandomAccessFile out = new java.io.RandomAccessFile(file.toFile(), "rw")) {
+            out.setLength(size);
+        }
+        touch(file);
+        return file;
+    }
+
+    @Test
+    void aBundleFileOverTheBoundStopsTheStartWithoutBeingCopied() throws IOException {
+        place(orders("1.0.0", "S"), dir.resolve("bundles/a-orders.rpgapi"));
+        sparse(dir.resolve("bundles/b-huge.rpgapi"), BOUND + 1);
+        StartResult result = start(config("./bundles"), StartOptions.mockOnly());
+        assertThat(result.started()).isEmpty();
+        assertThat(result.diagnostics()).extracting(Diagnostic::code).containsExactly("GWY021");
+        assertThat(result.diagnostics().get(0).message()).isEqualTo("The bundle file b-huge.rpgapi is larger than 138412032 bytes, more than any bundle can be; it is not read");
+        assertThat(result.diagnostics().get(0).location().line()).isEqualTo(3);
+    }
+
+    @Test
+    void aBundleFileOverTheBoundIsRefusedAtAReloadAndAFileAtTheBoundIsRead() throws IOException {
+        Path folder = dir.resolve("bundles");
+        place(orders("1.0.0", "S"), folder.resolve("a-orders.rpgapi"));
+        Started started = started(config("./bundles"));
+        try (LogCapture log = new LogCapture("slay400.gateway")) {
+            sparse(folder.resolve("b-huge.rpgapi"), BOUND + 1);
+            settle(started);
+            settle(started);
+            assertThat(warnings(log)).hasSize(1);
+            assertThat(warnings(log).get(0)).contains("GWY021").contains("b-huge.rpgapi is larger than 138412032 bytes");
+            assertThat(status(started)).isEqualTo(SHIPPED);
+            // At the bound the file is copied and read: here it is no zip, so the reader refuses it.
+            sparse(folder.resolve("b-huge.rpgapi"), BOUND);
+            settle(started);
+            assertThat(warnings(log)).hasSize(2);
+            assertThat(warnings(log).get(1)).doesNotContain("GWY021").contains("BDL");
+        }
+        assertThat(events).isEmpty();
+        started.close();
+    }
+
     @Test
     void filesAddedReplacedReplacedWithTheSameContentAndRemoved() throws IOException {
         Path folder = dir.resolve("bundles");

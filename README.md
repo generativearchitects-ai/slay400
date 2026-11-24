@@ -40,7 +40,8 @@ restart:
 - **A change** is a file added, removed, or with another size or time of last change, and a different content: a file
   copied again with the same content is not a change.
 - **It waits until the files are still.** A changed set is loaded only once it is the same at two polls in a row, so a file
-  being copied is not loaded half-way. Each file is then read once, into a private copy.
+  being copied is not loaded half-way. Each file is then read once, into a private copy. A file over 132 MiB, more than
+  any bundle can be, is refused without being copied.
 - **All or nothing.** The new set is checked as a start checks it. If anything fails, the running set stays and one warning
   gives the diagnostics; the same set is not tried again until the files change again.
 - **One switch.** A request is served entirely by the set that was current when it arrived; requests in flight finish on the
