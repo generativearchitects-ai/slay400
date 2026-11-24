@@ -16,7 +16,11 @@ The gateway reads one configuration file at start:
 
 ```yaml
 server:
-  port: 8080                  # default; the address is 127.0.0.1 by default
+  address: 127.0.0.1          # default
+  port: 8080                  # default
+management:
+  address: 127.0.0.1          # default
+  port: 9090                  # default; 0 turns the management listener off
 reload:
   intervalSeconds: 10         # default; 0 turns reloading off; at most 3600
 tenants:
@@ -31,6 +35,37 @@ tenants:
 ```
 java -jar gateway-server/target/dist/gateway.jar --config gateway.yaml
 ```
+
+### The listeners
+
+- **The API listener** (`server`) serves the operations and `/health/live` and `/health/ready`. Until kickoff 08 its address
+  was `server.host`; that key is now refused at start with a message that names `server.address`.
+- **The management listener** (`management`, plain HTTP) serves `/health/live`, `/health/ready` and `/metrics`, and never an
+  operation. The API listener never serves `/metrics`. Both listeners have the same limits (request line, headers, body size,
+  idle time, connections).
+
+### HTTPS
+
+```yaml
+server:
+  address: 0.0.0.0
+  port: 8443
+  tls:
+    certificate: /etc/slay400/tls/tls.crt   # PEM: the certificate, then its chain
+    key: /etc/slay400/tls/tls.key           # PEM, PKCS#8 (-----BEGIN PRIVATE KEY----- or ENCRYPTED PRIVATE KEY)
+    keyPassword: ${TLS_KEY_PASSWORD}        # only for an encrypted key; a ${NAME} placeholder, never a value
+```
+
+With `server.tls` the API listener speaks HTTPS only, TLS 1.3 and 1.2, with the JDK's cipher suites; no client certificate is
+asked for. A key in another PEM form (`-----BEGIN RSA PRIVATE KEY-----`) is converted with `openssl pkcs8 -topk8`.
+
+A certificate or key that is missing, unreadable, not PEM, not matching each other, expired or not valid yet stops the start
+(GWY022 to GWY024); a certificate that expires within 30 days is a warning (GWY025). A password written in the file stops the
+start (GWY015). No message shows key material or the password.
+
+**Rotation.** The two files are polled with the bundle files (`reload.intervalSeconds`), with the same rules: a new pair is
+taken once it is the same at two polls in a row, and is used for new connections; a pair that cannot be used is refused with
+one warning, and the pair in use stays.
 
 ### Loading bundles without restart
 

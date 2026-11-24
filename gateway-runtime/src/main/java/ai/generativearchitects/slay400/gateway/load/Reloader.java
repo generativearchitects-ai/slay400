@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Loads the bundles again while the gateway runs (kickoff 07, decision 129). Every interval it lists the bundle files; when
@@ -29,7 +30,7 @@ import java.util.Objects;
  * that finds no change. The environments' open backends (connections, credentials) are kept; everything of the set is built
  * again: route tables, codecs, bindings, mocks and the layouts of the {@code ibmi} backend.
  *
- * <p>One daemon thread, {@value #THREAD_NAME}, polls; a poll that fails is logged once and the next one still runs. {@link #poll()}
+ * <p>One daemon thread, {@value #THREAD_NAME}, polls the bundle files and, with TLS, the certificate and key ({@link TlsWatcher}); a poll that fails is logged once and the next one still runs. {@link #poll()}
  * may also be called directly, which is what the tests do.
  */
 public final class Reloader implements AutoCloseable {
@@ -46,6 +47,7 @@ public final class Reloader implements AutoCloseable {
     private final Gateway gateway;
     private final ReadLimits limits;
     private final StartOptions options;
+    private final Optional<TlsWatcher> tls;
 
     private BundleListing served;
     private Map<String, List<String>> servedContent;
@@ -60,7 +62,9 @@ public final class Reloader implements AutoCloseable {
     private volatile boolean running;
 
     Reloader(GatewayConfig config, Map<String, List<BundleListing.Entry>> entries, Map<Backend, BackendProvider> providers, Map<String, OpenBackend> backends,
-             Gateway gateway, ReadLimits limits, StartOptions options, BundleListing served, Map<String, List<String>> servedContent) {
+             Gateway gateway, ReadLimits limits, StartOptions options, BundleListing served, Map<String, List<String>> servedContent,
+             Optional<TlsWatcher> tls) {
+        this.tls = Objects.requireNonNull(tls, "tls");
         this.config = Objects.requireNonNull(config, "config");
         this.entries = new java.util.LinkedHashMap<>(entries);
         this.providers = Map.copyOf(providers);
@@ -100,6 +104,12 @@ public final class Reloader implements AutoCloseable {
             failure = null;
             LOG.log(System.Logger.Level.INFO, "The bundle files can be polled again");
         }
+    }
+
+    /** One poll of the thread: the bundle files, then the certificate and key of the API listener when it speaks TLS. Never throws. */
+    public void pollAll() {
+        poll();
+        tls.ifPresent(TlsWatcher::poll);
     }
 
     private void pollOnce() throws IOException {
@@ -255,7 +265,7 @@ public final class Reloader implements AutoCloseable {
                 return;
             }
             try {
-                poll();
+                pollAll();
             } catch (RuntimeException | StackOverflowError | OutOfMemoryError e) {
                 LOG.log(System.Logger.Level.ERROR, "A poll of the bundle files failed", e);
             }

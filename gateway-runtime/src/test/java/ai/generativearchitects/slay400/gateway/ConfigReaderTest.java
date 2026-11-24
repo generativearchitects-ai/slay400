@@ -47,7 +47,7 @@ class ConfigReaderTest {
     @Test
     void readsAValidFileWithDefaults() {
         GatewayConfig config = read(minimal("")).config().orElseThrow();
-        assertThat(config.host()).isEqualTo("127.0.0.1");
+        assertThat(config.address()).isEqualTo("127.0.0.1");
         assertThat(config.port()).isEqualTo(8080);
         assertThat(config.tenants()).hasSize(1);
         var tenant = config.tenants().get(0);
@@ -74,15 +74,15 @@ class ConfigReaderTest {
 
     @Test
     void readsServerSettings() {
-        GatewayConfig config = read(minimal("server:\n  host: 0.0.0.0\n  port: 9090\n")).config().orElseThrow();
-        assertThat(config.host()).isEqualTo("0.0.0.0");
+        GatewayConfig config = read(minimal("server:\n  address: 0.0.0.0\n  port: 9090\n")).config().orElseThrow();
+        assertThat(config.address()).isEqualTo("0.0.0.0");
         assertThat(config.port()).isEqualTo(9090);
     }
 
     @Test
     void replacesPlaceholdersInAnyScalar() {
         ConfigResult result = read("""
-                server: { host: "${H}", port: "${P}" }
+                server: { address: "${H}", port: "${P}" }
                 tenants:
                   acme:
                     bundles: ["./${B}.rpgapi"]
@@ -90,7 +90,7 @@ class ConfigReaderTest {
                       test: { code: "${C}-1", backend: mock }
                 """, Map.of("H", "10.0.0.1", "P", "8443", "B", "orders", "C", "T9"));
         GatewayConfig config = result.config().orElseThrow();
-        assertThat(config.host()).isEqualTo("10.0.0.1");
+        assertThat(config.address()).isEqualTo("10.0.0.1");
         assertThat(config.port()).isEqualTo(8443);
         assertThat(config.tenants().get(0).bundles().get(0).getFileName().toString()).isEqualTo("orders.rpgapi");
         assertThat(config.tenants().get(0).environments().get(0).code()).isEqualTo("T9-1");
@@ -98,7 +98,7 @@ class ConfigReaderTest {
 
     @Test
     void anUnsetVariableStopsTheStartNamingTheVariableAndThePlaceNeverAValue() {
-        ConfigResult result = read(minimal("server:\n  host: \"${NOPE}\"\n"), Map.of("OTHER", "secret-value"));
+        ConfigResult result = read(minimal("server:\n  address: \"${NOPE}\"\n"), Map.of("OTHER", "secret-value"));
         assertThat(result.config()).isEmpty();
         Diagnostic d = result.diagnostics().get(0);
         assertThat(d.code()).isEqualTo("GWY007");
@@ -109,14 +109,14 @@ class ConfigReaderTest {
 
     @Test
     void aValueIsNotRescannedForPlaceholders() {
-        ConfigResult result = read(minimal("server:\n  host: \"${A}\"\n"), Map.of("A", "${B}"));
-        assertThat(result.config().orElseThrow().host()).isEqualTo("${B}");
+        ConfigResult result = read(minimal("server:\n  address: \"${A}\"\n"), Map.of("A", "${B}"));
+        assertThat(result.config().orElseThrow().address()).isEqualTo("${B}");
     }
 
     @Test
     void aMalformedPlaceholderIsRefused() {
-        assertThat(codes(read(minimal("server:\n  host: \"a${1}b\"\n")))).isEqualTo("GWY006");
-        assertThat(codes(read(minimal("server:\n  host: \"a${b\"\n")))).isEqualTo("GWY006");
+        assertThat(codes(read(minimal("server:\n  address: \"a${1}b\"\n")))).isEqualTo("GWY006");
+        assertThat(codes(read(minimal("server:\n  address: \"a${b\"\n")))).isEqualTo("GWY006");
     }
 
     @Test
@@ -135,12 +135,13 @@ class ConfigReaderTest {
             extra: 1\\ntenants:\\n  a:\\n    bundles: [x]\\n    environments:\\n      t: { code: C, backend: mock }|GWY002|1
             tenants:\\n  a:\\n    bundles: [x]\\n    colour: red\\n    environments:\\n      t: { code: C, backend: mock }|GWY002|4
             tenants:\\n  a:\\n    bundles: [x]\\n    environments:\\n      t: { code: C, backend: mock, host: h }|GWY002|5
-            server:\\n  tls: true\\ntenants:\\n  a:\\n    bundles: [x]\\n    environments:\\n      t: { code: C, backend: mock }|GWY002|2
+            server:\\n  host: 0.0.0.0\\ntenants:\\n  a:\\n    bundles: [x]\\n    environments:\\n      t: { code: C, backend: mock }|GWY002|2
+            server:\\n  tls: true\\ntenants:\\n  a:\\n    bundles: [x]\\n    environments:\\n      t: { code: C, backend: mock }|GWY003|2
             server:\\n  port: abc\\ntenants:\\n  a:\\n    bundles: [x]\\n    environments:\\n      t: { code: C, backend: mock }|GWY006|2
             server:\\n  port: 0\\ntenants:\\n  a:\\n    bundles: [x]\\n    environments:\\n      t: { code: C, backend: mock }|GWY006|2
             server:\\n  port: 65536\\ntenants:\\n  a:\\n    bundles: [x]\\n    environments:\\n      t: { code: C, backend: mock }|GWY006|2
             server:\\n  port: [1]\\ntenants:\\n  a:\\n    bundles: [x]\\n    environments:\\n      t: { code: C, backend: mock }|GWY003|2
-            server:\\n  host: "a b"\\ntenants:\\n  a:\\n    bundles: [x]\\n    environments:\\n      t: { code: C, backend: mock }|GWY006|2
+            server:\\n  address: "a b"\\ntenants:\\n  a:\\n    bundles: [x]\\n    environments:\\n      t: { code: C, backend: mock }|GWY006|2
             server: {}\\ntenants:\\n  a:\\n    bundles: [x]\\n    environments:\\n      t: { code: C, backend: mock }|GWY004|1
             server:\\ntenants:\\n  a:\\n    bundles: [x]\\n    environments:\\n      t: { code: C, backend: mock }|GWY004|1
             tenants: {}|GWY004|1
@@ -208,7 +209,7 @@ class ConfigReaderTest {
 
     @Test
     void reportsEveryProblemNotOnlyTheFirst() {
-        ConfigResult result = read("server:\n  port: x\n  tls: 1\ntenants: {}\n");
+        ConfigResult result = read("server:\n  port: x\n  colour: 1\ntenants: {}\n");
         assertThat(codes(result)).isEqualTo("GWY002,GWY006,GWY004");
     }
 

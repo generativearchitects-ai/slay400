@@ -36,7 +36,8 @@ final class ServerFixture implements AutoCloseable {
 
     ServerFixture(Path dir, ServerLimits limits) {
         this.port = freePort();
-        String config = Fixtures.SHOP_CONFIG.replace("tenants:", "server:\n  port: " + port + "\ntenants:");
+        // A free port for the management listener too, so that no test needs its default port.
+        String config = Fixtures.SHOP_CONFIG.replace("tenants:", "server:\n  port: " + port + "\nmanagement:\n  port: " + freePort() + "\ntenants:");
         StartResult result = Fixtures.start(dir, config, Map.of(), log);
         server = HelidonServer.start(result.started().orElseThrow(() -> new IllegalStateException(result.diagnostics().toString())), limits);
         // The server's own access lines go to the same list as the pipeline's.
