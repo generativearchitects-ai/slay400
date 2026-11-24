@@ -19,7 +19,8 @@ import java.util.stream.Stream;
 
 /**
  * A private copy of every file of a listing, each read once, with the SHA-256 of its content (kickoff 07, rule 8). The core
- * reads a bundle from a path only, so the gateway reads the copy, which nobody else writes: a file replaced while it is copied
+ * reads a bundle from a path only, so the gateway reads the copy, which nobody else writes, under the file's own name in a
+ * numbered folder of its own: a file replaced while it is copied
  * shows as a changed stamp, and the snapshot is then not {@link #stable()}. The copies are deleted on {@link #close()}.
  */
 final class BundleSnapshot implements AutoCloseable {
@@ -52,7 +53,8 @@ final class BundleSnapshot implements AutoCloseable {
                     if (listed.stamp().isEmpty() || copies.containsKey(listed.path())) {
                         continue;
                     }
-                    Path copy = folder.resolve(copies.size() + BundleFiles.EXTENSION);
+                    // Under the file's own name, so that the reader's diagnostics name it as they name the original.
+                    Path copy = Files.createDirectory(folder.resolve(String.valueOf(copies.size()))).resolve(listed.path().getFileName());
                     MessageDigest digest = sha256();
                     try (OutputStream out = new DigestOutputStream(Files.newOutputStream(copy), digest)) {
                         files.copy(listed.path(), out);
@@ -111,11 +113,10 @@ final class BundleSnapshot implements AutoCloseable {
     }
 
     private static void delete(Path folder) {
-        try (Stream<Path> files = Files.list(folder)) {
-            for (Path file : (Iterable<Path>) files::iterator) {
+        try (Stream<Path> files = Files.walk(folder)) {
+            for (Path file : (Iterable<Path>) files.sorted(java.util.Comparator.reverseOrder())::iterator) {
                 Files.deleteIfExists(file);
             }
-            Files.deleteIfExists(folder);
         } catch (IOException | UncheckedIOException e) {
             System.getLogger("slay400.gateway").log(System.Logger.Level.WARNING, "A private copy of the bundles could not be deleted: " + e.getClass().getSimpleName());
         }

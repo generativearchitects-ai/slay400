@@ -225,6 +225,72 @@ class ReloadTest {
     }
 
     @Test
+    void onlyTheEmptyOneOfTwoFoldersIsAnErrorAtStart() throws IOException {
+        place(orders("1.0.0", "S"), dir.resolve("full/orders.rpgapi"));
+        Files.createDirectories(dir.resolve("empty"));
+        StartResult result = start(config("./full", "./empty"), StartOptions.mockOnly());
+        assertThat(result.diagnostics()).extracting(Diagnostic::message).containsExactly("The folder empty has no bundle file (*.rpgapi)");
+        assertThat(result.diagnostics().get(0).location().line()).isEqualTo(3);
+    }
+
+    @Test
+    void theDiagnosticsOfABundleNameItsFileNotThePrivateCopy() {
+        Path broken = dir.resolve("bundles/broken.rpgapi");
+        write(broken, "this is not a zip".getBytes(StandardCharsets.UTF_8));
+        StartResult result = start(config("./bundles"), StartOptions.mockOnly());
+        assertThat(result.started()).isEmpty();
+        assertThat(result.diagnostics()).isNotEmpty();
+        assertThat(result.diagnostics()).allSatisfy(d -> {
+            assertThat(d.location().file()).doesNotContain("slay400-bundles-");
+            assertThat(d.message()).doesNotContain("slay400-bundles-");
+        });
+        // As the reader names the file it is given: by its name.
+        assertThat(result.diagnostics()).extracting(d -> d.location().file()).contains("broken.rpgapi");
+    }
+
+    @Test
+    void aFileThatChangesWhileItIsCopiedAtStartStopsTheStart() throws IOException {
+        Path file = place(orders("1.0.0", "S"), dir.resolve("bundles/orders.rpgapi"));
+        ReplacingFiles files = new ReplacingFiles(file, Files.readAllBytes(orders("2.0.0", "H")));
+        files.armed = true;
+        StartResult result = start(config("./bundles"), StartOptions.mockOnly().withFiles(files));
+        assertThat(result.started()).isEmpty();
+        assertThat(result.diagnostics()).extracting(Diagnostic::code).containsExactly("GWY021");
+        assertThat(result.diagnostics().get(0).message()).isEqualTo("A bundle file changed while it was read; start again when it is complete");
+    }
+
+    @Test
+    void aFolderThatCannotBeListedAtStartStopsTheStart() throws IOException {
+        Files.createDirectories(dir.resolve("bundles"));
+        BundleFiles system = BundleFiles.system();
+        BundleFiles unreadable = new BundleFiles() {
+            @Override
+            public boolean isFolder(Path path) {
+                return system.isFolder(path);
+            }
+
+            @Override
+            public List<Path> bundlesIn(Path folder) throws IOException {
+                throw new java.nio.file.AccessDeniedException(folder.toString());
+            }
+
+            @Override
+            public Optional<Stamp> stamp(Path path) throws IOException {
+                return system.stamp(path);
+            }
+
+            @Override
+            public void copy(Path path, OutputStream to) throws IOException {
+                system.copy(path, to);
+            }
+        };
+        StartResult result = start(config("./bundles"), StartOptions.mockOnly().withFiles(unreadable));
+        assertThat(result.started()).isEmpty();
+        assertThat(result.diagnostics()).extracting(Diagnostic::code).containsExactly("GWY019");
+        assertThat(result.diagnostics().get(0).message()).isEqualTo("A bundle folder or file cannot be read (AccessDeniedException)");
+    }
+
+    @Test
     void filesAddedReplacedReplacedWithTheSameContentAndRemoved() throws IOException {
         Path folder = dir.resolve("bundles");
         // Version 2.0.0 changes the mock and the definition of the operation (its summary).
@@ -596,11 +662,19 @@ class ReloadTest {
 
     @Test
     void thePollThreadPollsAtTheIntervalAndShutdownStopsIt() throws Exception {
-        place(orders("1.0.0", "S"), dir.resolve("bundles/orders.rpgapi"));
+        Path file = place(orders("1.0.0", "S"), dir.resolve("bundles/orders.rpgapi"));
+        Path v2 = orders("2.0.0", "H");
         CountDownLatch slept = new CountDownLatch(3);
+        CountDownLatch blocked = new CountDownLatch(1);
+        AtomicBoolean block = new AtomicBoolean();
         List<Duration> asked = new CopyOnWriteArrayList<>();
         StartOptions.Sleeper sleeper = duration -> {
             asked.add(duration);
+            if (block.get()) {
+                // A long wait, which only an interrupt ends.
+                blocked.countDown();
+                Thread.sleep(60_000);
+            }
             slept.countDown();
             Thread.sleep(5);
         };
@@ -608,13 +682,39 @@ class ReloadTest {
         Started started = result.started().orElseThrow();
         assertThat(started.reloader().polling()).isFalse();
         started.startReloading();
+        started.startReloading();
         assertThat(slept.await(5, TimeUnit.SECONDS)).isTrue();
         assertThat(started.reloader().polling()).isTrue();
-        assertThat(Thread.getAllStackTraces().keySet()).anyMatch(t -> t.getName().equals(Reloader.THREAD_NAME) && t.isDaemon());
+        assertThat(Thread.getAllStackTraces().keySet()).filteredOn(t -> t.getName().equals(Reloader.THREAD_NAME)).hasSize(1).allMatch(Thread::isDaemon);
+        // The thread polls: a new version is served without any call of poll() by the test.
+        place(v2, file);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (!bundles(started).equals(List.of("orders@2.0.0")) && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        assertThat(bundles(started)).containsExactly("orders@2.0.0");
         assertThat(asked).allMatch(d -> d.equals(Duration.ofSeconds(7)));
+        // Shutdown interrupts the wait and the thread ends at once.
+        block.set(true);
+        assertThat(blocked.await(5, TimeUnit.SECONDS)).isTrue();
+        long closing = System.nanoTime();
         started.close();
+        assertThat(Duration.ofNanos(System.nanoTime() - closing)).isLessThan(Duration.ofSeconds(4));
         assertThat(started.reloader().polling()).isFalse();
         assertThat(Thread.getAllStackTraces().keySet()).noneMatch(t -> t.getName().equals(Reloader.THREAD_NAME));
+    }
+
+    @Test
+    void theSwitchLineSaysHowLongTheLoadTook() {
+        Path file = place(orders("1.0.0", "S"), dir.resolve("bundles/orders.rpgapi"));
+        java.util.concurrent.atomic.AtomicLong nanos = new java.util.concurrent.atomic.AtomicLong();
+        // Every reading of the clock is 7.5 ms later than the one before.
+        Started started = start(config("./bundles"), StartOptions.mockOnly().withTime(duration -> { }, () -> nanos.addAndGet(7_500_000))).started().orElseThrow();
+        place(orders("2.0.0", "H"), file);
+        settle(started);
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0)).endsWith(",\"durationMs\":7}");
+        started.close();
     }
 
     @Test

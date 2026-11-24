@@ -18,19 +18,17 @@ public record ServedSet(Map<String, TenantRuntime> tenants, List<Bundle> bundles
     /**
      * One bundle of a set.
      *
-     * @param tenant     the tenant that serves it
-     * @param name       the bundle name of its manifest
-     * @param version    the bundle version of its manifest
-     * @param operations the ids of its operations
+     * @param tenant  the tenant that serves it
+     * @param name    the bundle name of its manifest
+     * @param version the bundle version of its manifest
      */
-    public record Bundle(String tenant, String name, String version, List<String> operations) {
+    public record Bundle(String tenant, String name, String version) {
 
         /** @throws NullPointerException if an argument is {@code null} */
         public Bundle {
             Objects.requireNonNull(tenant, "tenant");
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(version, "version");
-            operations = List.copyOf(operations);
         }
     }
 

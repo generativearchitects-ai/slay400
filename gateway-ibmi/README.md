@@ -35,9 +35,10 @@ No message, log line or `toString` names the host, the libraries, the user or th
 
 ## Behaviour
 
-- Every operation uses the raw call: one byte array per top-level parameter, laid out from the wire types of the descriptor.
-  Date, time and timestamp fields, counts and lengths that name another field, service program procedures and return values
-  are refused at start (GWY017) as not supported yet.
+- Every operation uses the raw call: one byte array per top-level parameter, laid out from the wire types of the descriptor
+  and the formats the compiler's PCML states. Counts and lengths that name another field, the `byte` type, service program
+  procedures, return values, and date and time formats no real system has returned (decision 121) are refused at start
+  (GWY017).
 - The program is called as `/QSYS.LIB/%LIBL%.LIB/<name>.PGM`, through the library list of the environment, which is set on each
   connection when it is opened with `CHGLIBL LIBL(...) CURLIB(*CRTDFT)`. The library in the PCML is not used.
 - A connection is checked before use and replaced when broken. When no connection is free within 2 seconds, the call is 503.

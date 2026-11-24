@@ -162,6 +162,20 @@ class BackendStartTest {
     }
 
     @Test
+    void eachEnvironmentCallsThroughItsOwnOpenBackend() {
+        FakeBackend backend = new FakeBackend();
+        Started started = start(config(ibmi("test"), ibmi("prod")), new StartOptions(List.of(backend), false)).started().orElseThrow();
+        assertThat(backend.opened).hasSize(2);
+        started.gateway().handle(new RuntimeRequest("GET", "/acme/prod/orders/1001/status", Map.of(), Map.of(), Optional.empty(), () -> new byte[0]));
+        started.gateway().handle(new RuntimeRequest("GET", "/acme/prod/orders/1001/status", Map.of(), Map.of(), Optional.empty(), () -> new byte[0]));
+        started.gateway().handle(new RuntimeRequest("GET", "/acme/test/orders/1001/status", Map.of(), Map.of(), Optional.empty(), () -> new byte[0]));
+        assertThat(backend.calls).containsSubsequence("start acme/test 2 false", "start acme/prod 2 false");
+        assertThat(backend.opened.get(0).calls).hasValue(1);
+        assertThat(backend.opened.get(1).calls).hasValue(2);
+        started.close();
+    }
+
+    @Test
     void aBackendThatCannotBeOpenedStopsTheStartAndThoseAlreadyOpenedAreClosed() {
         FakeBackend backend = new FakeBackend();
         backend.problems = environment -> environment.equals("prod") ? List.of("the sign-on was refused") : List.of();

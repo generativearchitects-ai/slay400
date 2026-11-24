@@ -273,8 +273,7 @@ public final class GatewayLoader {
         Map<ApiOperation, MockProgram> mocks = new IdentityHashMap<>();
         List<ServedSet.Bundle> served = new ArrayList<>();
         for (Bundle bundle : bundles) {
-            served.add(new ServedSet.Bundle(tenant.name(), bundle.manifest().name(), bundle.manifest().version(),
-                    bundle.model().apis().stream().flatMap(api -> api.operations().stream()).map(ApiOperation::id).toList()));
+            served.add(new ServedSet.Bundle(tenant.name(), bundle.manifest().name(), bundle.manifest().version()));
             for (ApiDefinition api : bundle.model().apis()) {
                 allApis.add(api);
                 Map<String, MockDefinition> definitions = mockDefinitions(bundle, api, found);
