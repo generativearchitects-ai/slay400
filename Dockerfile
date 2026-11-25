@@ -20,7 +20,8 @@ ARG SOURCE=https://github.com/generativearchitects-ai/${PRODUCT}
 LABEL org.opencontainers.image.title="${PRODUCT} gateway, Community Edition" \
       org.opencontainers.image.source="${SOURCE}" \
       org.opencontainers.image.revision="${REVISION}" \
-      org.opencontainers.image.licenses="BUSL-1.1"
+      org.opencontainers.image.licenses="BUSL-1.1" \
+      org.opencontainers.image.description="This distribution does not contain JT400 (JTOpen, the IBM Toolbox for Java). The `ibmi` backend needs it at run time. Operators obtain it themselves, under its own licence, the IBM Public License 1.0; the documentation explains how to download and add it."
 
 # A fixed user and group that are not root, with no home and no shell.
 RUN groupadd --system --gid 10001 gateway \

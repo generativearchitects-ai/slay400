@@ -64,6 +64,9 @@ echo "Image size: $SIZE bytes ($((SIZE / 1024 / 1024)) MiB)"
 [ "$(docker image inspect -f '{{.Config.User}}' "$IMAGE")" = "10001:10001" ] || fail "the image does not run as 10001:10001"
 docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}} {{index .Config.Labels "org.opencontainers.image.source"}}' "$IMAGE"
 docker image inspect -f 'Entry point {{json .Config.Entrypoint}}, command {{json .Config.Cmd}}' "$IMAGE"
+# The description of the image is the notice of decision 149, word for word.
+NOTICE='This distribution does not contain JT400 (JTOpen, the IBM Toolbox for Java). The `ibmi` backend needs it at run time. Operators obtain it themselves, under its own licence, the IBM Public License 1.0; the documentation explains how to download and add it.'
+[ "$(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.description"}}' "$IMAGE")" = "$NOTICE" ] || fail "the description of the image is not the notice of decision 149"
 for file in LICENSE THIRD-PARTY-NOTICES.md bom.json VERSION bin/slay400-gateway lib/gateway.jar lib/ext/README; do
   docker run --rm --read-only --entrypoint /bin/sh "$IMAGE" -c "test -s /opt/slay400/$file" || fail "the image has no /opt/slay400/$file"
 done
