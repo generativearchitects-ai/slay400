@@ -28,9 +28,11 @@
       <groupId>ai.generativearchitects.slay400</groupId>
       <artifactId>pcml-codec</artifactId>
     </dependency>
+    <!-- JTOpen is compiled and tested against, never packaged: the operator supplies it (decision 143, gateway kickoff 10). -->
     <dependency>
       <groupId>net.sf.jt400</groupId>
       <artifactId>jt400</artifactId>
+      <scope>provided</scope>
     </dependency>
 
     <dependency>

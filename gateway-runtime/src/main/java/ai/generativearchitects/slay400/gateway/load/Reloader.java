@@ -142,7 +142,7 @@ public final class Reloader implements AutoCloseable {
                 refused = now;
                 return;
             }
-            GatewayLoader.Compiled compiled = GatewayLoader.compile(config, now, snapshot, providers, limits, true);
+            GatewayLoader.Compiled compiled = GatewayLoader.compile(config, now, snapshot, providers, limits, true, options.unavailable());
             if (GatewayLoader.errors(compiled.diagnostics()) > 0) {
                 refuse(now, content, compiled.diagnostics());
                 return;

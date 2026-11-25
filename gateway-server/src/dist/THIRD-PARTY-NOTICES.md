@@ -1,16 +1,15 @@
 # Notices for third-party components
 
 The libraries in `lib/` are distributed under their own licences. Third-party libraries are not covered by the gateway's
-licence (`LICENSE` in the gateway's repository).
+licence (`LICENSE`).
 
 Every library of this distribution is listed, with its version and licence, in `bom.json`: a CycloneDX bill of materials,
-written at build time from the dependency list of the gateway. This file adds the notice that the licence of JTOpen asks for.
+written at build time from the dependency list of the gateway.
 
-## JTOpen ${jt400.version}
+## JTOpen is not included
 
-- File: `lib/jt400-${jt400.version}.jar` (Maven Central, `net.sf.jt400:jt400:${jt400.version}`)
-- Licence: IBM Public License Version 1.0. The full text, as shipped in the JTOpen jar, is in `licenses/jtopen/license.html`.
-- JTOpen is distributed here, unmodified, under the IBM Public License, not under the gateway's licence.
-- Copyright (C) 1997-2024 International Business Machines Corporation and others. All Rights Reserved.
-- Source code: the source of this version is available as `net.sf.jt400:jt400:${jt400.version}:sources` on Maven Central,
-  https://repo1.maven.org/maven2/net/sf/jt400/jt400/${jt400.version}/jt400-${jt400.version}-sources.jar
+The `ibmi` backend calls programs on IBM i through JTOpen (JT400, IBM Public License 1.0). JTOpen is not part of this
+distribution and is not shipped with it: the operator of a gateway that has an `ibmi` environment downloads it from Maven
+Central (`net.sf.jt400:jt400`) and puts its jar into `lib/ext/` (in the container image, a folder mounted at
+`/opt/slay400/ext`). The README of the gateway gives the commands, and the versions verified on a real system. A gateway
+with `mock` environments only does not need it.
