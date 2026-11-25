@@ -65,6 +65,8 @@ echo "Image size: $SIZE bytes ($((SIZE / 1024 / 1024)) MiB)"
 docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}} {{index .Config.Labels "org.opencontainers.image.source"}}' "$IMAGE"
 docker image inspect -f 'Entry point {{json .Config.Entrypoint}}, command {{json .Config.Cmd}}' "$IMAGE"
 # The description of the image is the notice of decision 149, word for word.
+# The backticks are part of the wording, not a command.
+# shellcheck disable=SC2016
 NOTICE='This distribution does not contain JT400 (JTOpen, the IBM Toolbox for Java). The `ibmi` backend needs it at run time. Operators obtain it themselves, under its own licence, the IBM Public License 1.0; the documentation explains how to download and add it.'
 [ "$(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.description"}}' "$IMAGE")" = "$NOTICE" ] || fail "the description of the image is not the notice of decision 149"
 for file in LICENSE THIRD-PARTY-NOTICES.md bom.json VERSION bin/slay400-gateway lib/gateway.jar lib/ext/README; do
@@ -99,7 +101,13 @@ echo "$BODY"
 echo "$BODY" | grep -q '"status":"S"' || fail "unexpected answer: $BODY"
 [ "$(curl -s -o /dev/null -w '%{http_code}' "http://$API/health/live")" = "200" ] || fail "no health on the API listener"
 [ "$(curl -s -o /dev/null -w '%{http_code}' "http://$MANAGEMENT/acme/test/orders/1001/status")" = "404" ] || fail "an operation on the management listener"
-docker logs "$NAME" 2>&1 | grep -q '"bundleVersion":"1.0.0"' || fail "the first answer was not served by 1.0.0"
+# The access line is written once the answer is sent: wait for it, briefly.
+LOGGED=no
+for _ in $(seq 1 20); do
+  if docker logs "$NAME" 2>&1 | grep -q '"bundleVersion":"1.0.0"'; then LOGGED=yes; break; fi
+  sleep 0.25
+done
+[ "$LOGGED" = yes ] || fail "the first answer was not served by 1.0.0"
 
 echo "== The bundle replaced, the new version served"
 cp "$WORK/shop-1.1.0.rpgapi" "$WORK/bundles/shop.rpgapi.part"
