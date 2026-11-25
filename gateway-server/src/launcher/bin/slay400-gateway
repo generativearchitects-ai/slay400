@@ -1,0 +1,45 @@
+#!/bin/sh
+# slay400-gateway: starts the gateway of this distribution (gateway kickoff 10, decision 147).
+#
+# Java: $JAVA_HOME/bin/java when JAVA_HOME is set, otherwise java from the PATH; version 21 or later, otherwise one sentence
+# and exit status 3. $JAVA_OPTS and $SLAY400_GATEWAY_OPTS, when set, are passed to the JVM. Every argument is passed on
+# unchanged, and the exit status is the gateway's. The script resolves symbolic links to itself, writes nothing and uses no
+# network.
+
+# Where this distribution is: follow symbolic links to the script itself.
+script=$0
+while [ -h "$script" ]; do
+  link=$(readlink "$script")
+  case $link in
+    /*) script=$link ;;
+    *) script=$(dirname "$script")/$link ;;
+  esac
+done
+home=$(cd "$(dirname "$script")/.." && pwd -P)
+
+# Which Java.
+if [ -n "$JAVA_HOME" ]; then
+  java=$JAVA_HOME/bin/java
+else
+  java=$(command -v java 2>/dev/null)
+fi
+if [ -z "$java" ] || [ ! -x "$java" ]; then
+  echo "slay400-gateway needs Java 21 or later and found no Java: set JAVA_HOME or put java on the PATH." >&2
+  exit 3
+fi
+
+# Its version: the first quoted text of "java -version", for example 21.0.13 or 1.8.0_402.
+version=$("$java" -version 2>&1 | sed -n 's/^[^"]*"\([^"]*\)".*/\1/p' | head -n 1)
+case $version in
+  1.*) major=$(echo "$version" | cut -d. -f2) ;;
+  *) major=$(echo "$version" | sed 's/[^0-9].*//') ;;
+esac
+if [ -z "$major" ] || [ "$major" -lt 21 ] 2>/dev/null; then
+  echo "slay400-gateway needs Java 21 or later and found ${version:-no version} at $java." >&2
+  exit 3
+fi
+
+# JAVA_OPTS and SLAY400_GATEWAY_OPTS are split into words on purpose, as for other Java launchers.
+# shellcheck disable=SC2086
+exec "$java" $JAVA_OPTS $SLAY400_GATEWAY_OPTS -Dslay400.gateway.home="$home" -cp "$home/lib/*" \
+  ai.generativearchitects.slay400.gateway.server.Main "$@"

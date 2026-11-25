@@ -65,8 +65,9 @@ class ListenersTest {
 
     /** Starts the shop fixture with these sections before {@code tenants}; {@code MANAGEMENT} stands for a free port. */
     private void start(String server, String managementSection) {
-        port = ServerFixture.freePort();
-        management = ServerFixture.freePort();
+        int[] ports = ServerFixture.freePorts(2);
+        port = ports[0];
+        management = ports[1];
         String config = "server:\n  port: " + port + "\n" + server + managementSection.replace("MANAGEMENT", String.valueOf(management)) + Fixtures.SHOP_CONFIG;
         StartResult result = Fixtures.start(dir, config, Map.of(), access);
         started = result.started().orElseThrow(() -> new IllegalStateException(result.diagnostics().toString()));

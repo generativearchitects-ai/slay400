@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# The CI test of the gateway image (kickoff 08, Part B). It needs the image built as $IMAGE (default gateway:ci) and runs it
-# like an operator would: read-only, as its own user, with a small tmpfs, the shop fixture mounted. It calls an operation and
-# the health paths, replaces the bundle and sees the new version served, sends SIGTERM and checks the exit code. Nothing is
-# pushed anywhere. It prints the figures the pull request reports: the size of the image and how long the stop took.
+# The CI test of the gateway image (kickoff 08, Part B; kickoff 10). It needs the image built as $IMAGE (default gateway:ci)
+# and runs it like an operator would: read-only, as its own user, with a small tmpfs, the shop fixture mounted. It runs it
+# twice. First with mock environments only and no folder mounted for the operator's libraries: an operation and the health
+# paths, the bundle replaced and the new version served, SIGTERM and the exit code. Then with a stub of JTOpen's entry class
+# mounted at /opt/slay400/ext, to see the gateway find it and name its version. Nothing is pushed anywhere. It prints the
+# figures the pull request reports: the size of the image and how long the stop took.
 set -euo pipefail
 
 IMAGE=${IMAGE:-gateway:ci}
@@ -22,6 +24,14 @@ fail() {
   exit 1
 }
 
+wait_ready() {
+  for _ in $(seq 1 60); do
+    if curl -fsS "http://$MANAGEMENT/health/ready" >/dev/null 2>&1; then return 0; fi
+    sleep 0.5
+  done
+  fail "not ready on the management listener"
+}
+
 echo "== Two versions of the shop bundle"
 ./mvnw -B -q -f fixtures/shop/pom.xml package -Dpcml.attach=false -Dpcml.bundleFile="$WORK/shop-1.0.0.rpgapi"
 ./mvnw -B -q -f fixtures/shop/pom.xml package -Dpcml.attach=false -Dpcml.bundleVersion=1.1.0 -Dpcml.bundleFile="$WORK/shop-1.1.0.rpgapi"
@@ -37,6 +47,14 @@ tenants:
     environments:
       test: { code: T0001, backend: mock }
 YAML
+
+echo "== A stub of JTOpen's entry class, for the second run"
+mkdir -p "$WORK/stub/src/com/ibm/as400/access" "$WORK/stub/classes/META-INF/maven/net.sf.jt400/jt400" "$WORK/ext"
+printf 'package com.ibm.as400.access;\n\n/** A stub of the entry class of JTOpen, for the test of the image only. */\npublic class AS400 {\n}\n' \
+  > "$WORK/stub/src/com/ibm/as400/access/AS400.java"
+javac -d "$WORK/stub/classes" "$WORK/stub/src/com/ibm/as400/access/AS400.java"
+printf 'groupId=net.sf.jt400\nartifactId=jt400\nversion=0.0.0-stub\n' > "$WORK/stub/classes/META-INF/maven/net.sf.jt400/jt400/pom.properties"
+jar --create --file "$WORK/ext/jtopen-stub.jar" -C "$WORK/stub/classes" .
 # The user of the image (10001) reads the mounted files.
 chmod -R a+rX "$WORK"
 
@@ -45,9 +63,11 @@ SIZE=$(docker image inspect -f '{{.Size}}' "$IMAGE")
 echo "Image size: $SIZE bytes ($((SIZE / 1024 / 1024)) MiB)"
 [ "$(docker image inspect -f '{{.Config.User}}' "$IMAGE")" = "10001:10001" ] || fail "the image does not run as 10001:10001"
 docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}} {{index .Config.Labels "org.opencontainers.image.source"}}' "$IMAGE"
-for file in LICENSE THIRD-PARTY-NOTICES.md bom.json gateway.jar; do
-  docker run --rm --read-only --entrypoint /bin/sh "$IMAGE" -c "test -s /opt/gateway/$file" || fail "the image has no /opt/gateway/$file"
+docker image inspect -f 'Entry point {{json .Config.Entrypoint}}, command {{json .Config.Cmd}}' "$IMAGE"
+for file in LICENSE THIRD-PARTY-NOTICES.md bom.json VERSION bin/slay400-gateway lib/gateway.jar lib/ext/README; do
+  docker run --rm --read-only --entrypoint /bin/sh "$IMAGE" -c "test -s /opt/slay400/$file" || fail "the image has no /opt/slay400/$file"
 done
+docker run --rm --read-only "$IMAGE" --version | grep -q '^slay400-gateway ' || fail "no version from the launcher"
 
 echo "== Without a configuration it stops with the diagnostic of a missing file"
 set +e
@@ -58,17 +78,19 @@ echo "$OUT" | tail -n 3
 [ "$CODE" -eq 1 ] || fail "exit code $CODE without a configuration, not 1"
 echo "$OUT" | grep -q "GWY001" || fail "no GWY001 without a configuration"
 
-echo "== Start"
+echo "== check, without listening"
+docker run --rm --read-only --tmpfs /tmp:rw,size=64m -v "$WORK/etc:/etc/slay400:ro" -v "$WORK/bundles:/var/lib/slay400/bundles:ro" \
+  "$IMAGE" check --config /etc/slay400/gateway.yaml | tee "$WORK/check.out"
+grep -q "can be served" "$WORK/check.out" || fail "check did not pass"
+
+echo "== Run 1: mock only, no folder for the operator's libraries"
 docker run -d --name "$NAME" --read-only --tmpfs /tmp:rw,size=64m \
   -v "$WORK/etc:/etc/slay400:ro" -v "$WORK/bundles:/var/lib/slay400/bundles:ro" \
   -p "$API:8080" -p "$MANAGEMENT:9090" "$IMAGE" >/dev/null
-for _ in $(seq 1 60); do
-  if curl -fsS "http://$MANAGEMENT/health/ready" >/dev/null 2>&1; then break; fi
-  sleep 0.5
-done
-curl -fsS "http://$MANAGEMENT/health/ready" >/dev/null || fail "not ready on the management listener"
+wait_ready
+docker logs "$NAME" 2>&1 | grep '"event":"started"'
+docker logs "$NAME" 2>&1 | grep -q '"ext":"/opt/slay400/ext","jt400":"none"' || fail "the start line does not say that there is no JTOpen"
 
-echo "== An operation and the health paths"
 BODY=$(curl -fsS "http://$API/acme/test/orders/1001/status")
 echo "$BODY"
 echo "$BODY" | grep -q '"status":"S"' || fail "unexpected answer: $BODY"
@@ -97,4 +119,17 @@ echo "Stopped in $(( (STOPPED - STARTED) / 1000000 )) ms, exit code $CODE"
 docker logs "$NAME" 2>&1 | grep -q '"event":"stopped"' || fail "the gateway did not report that it stopped"
 # A JVM that ends on SIGTERM through its shutdown hooks exits with 128 + 15.
 [ "$CODE" -eq 143 ] || fail "exit code $CODE after SIGTERM, not 143"
+docker rm "$NAME" >/dev/null
+
+echo "== Run 2: a stub of JTOpen mounted at /opt/slay400/ext"
+docker run -d --name "$NAME" --read-only --tmpfs /tmp:rw,size=64m \
+  -v "$WORK/etc:/etc/slay400:ro" -v "$WORK/bundles:/var/lib/slay400/bundles:ro" -v "$WORK/ext:/opt/slay400/ext:ro" \
+  -p "$API:8080" -p "$MANAGEMENT:9090" "$IMAGE" >/dev/null
+wait_ready
+docker logs "$NAME" 2>&1 | grep '"event":"started"'
+docker logs "$NAME" 2>&1 | grep -q '"jt400":"0.0.0-stub"' || fail "the start line does not name the JTOpen found"
+docker logs "$NAME" 2>&1 | grep -q 'GWY028' || fail "no warning for a version that has not been verified"
+curl -fsS -o /dev/null "http://$API/acme/test/orders/1001/status" || fail "the mock does not answer with JTOpen mounted"
+docker stop --time 10 "$NAME" >/dev/null
+[ "$(docker inspect -f '{{.State.ExitCode}}' "$NAME")" -eq 143 ] || fail "the second run did not stop with 143"
 echo "Container test passed"

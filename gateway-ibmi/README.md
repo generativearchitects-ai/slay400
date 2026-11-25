@@ -3,6 +3,10 @@
 The `ibmi` backend of the gateway: program calls on IBM i through JTOpen (JT400). It is the only module that depends on JT400;
 nothing of JT400 appears in `gateway-runtime` or in the call interface.
 
+JTOpen is compiled and tested against (`provided` scope) and never packaged (decision 143). In the distribution this module
+sits in `lib/ibmi/` and is loaded, with the JTOpen jar the operator puts into `lib/ext/`, by a class loader of its own; it is
+found there as a `BackendProvider` service. See "JTOpen for the ibmi backend" in the README of the gateway.
+
 ## Configuration
 
 An environment with `backend: ibmi` (all values below are examples; credentials are always environment variables):

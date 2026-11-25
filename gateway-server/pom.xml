@@ -20,10 +20,13 @@
       <artifactId>gateway-runtime</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- At run time only: the server never names a class of the ibmi backend. In the distribution the backend sits in
+         lib/ibmi and is loaded, with the JTOpen the operator supplies, by a class loader of its own (gateway kickoff 10). -->
     <dependency>
       <groupId>ai.generativearchitects.slay400</groupId>
       <artifactId>gateway-ibmi</artifactId>
       <version>${project.version}</version>
+      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>io.helidon.webserver</groupId>
@@ -38,6 +41,13 @@
       <scope>test</scope>
     </dependency>
 
+    <!-- Test scope only: the tests of the ibmi backend through the server need JTOpen, which is never packaged. -->
+    <dependency>
+      <groupId>net.sf.jt400</groupId>
+      <artifactId>jt400</artifactId>
+      <scope>test</scope>
+    </dependency>
+
     <!-- Test scope only: the fixtures are built into bundles with the modules of slay400-core. -->
     <dependency>
       <groupId>ai.generativearchitects.slay400</groupId>
@@ -48,18 +58,17 @@
 
   <build>
     <plugins>
-      <!-- The runnable distribution: target/dist/gateway.jar next to target/dist/lib. Start it with: java -jar target/dist/gateway.jar, option config, and a file. -->
+      <!-- The distribution, target/dist: bin/ (the launcher), lib/ (this jar and its libraries), lib/ibmi/ (the ibmi
+           backend), lib/ext/ (empty: for the JTOpen the operator supplies), LICENSE, notices, bom.json, VERSION. -->
       <plugin>
         <artifactId>maven-jar-plugin</artifactId>
         <configuration>
-          <outputDirectory>${project.build.directory}/dist</outputDirectory>
+          <outputDirectory>${project.build.directory}/dist/lib</outputDirectory>
           <finalName>gateway</finalName>
           <archive>
             <manifest>
               <mainClass>ai.generativearchitects.slay400.gateway.server.Main</mainClass>
-              <addClasspath>true</addClasspath>
-              <classpathPrefix>lib/</classpathPrefix>
-              <useUniqueVersions>false</useUniqueVersions>
+              <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
             </manifest>
           </archive>
         </configuration>
@@ -76,23 +85,23 @@
             <configuration>
               <outputDirectory>${project.build.directory}/dist/lib</outputDirectory>
               <includeScope>runtime</includeScope>
+              <excludeArtifactIds>gateway-ibmi</excludeArtifactIds>
             </configuration>
           </execution>
-          <!-- JTOpen is distributed under its own licence, the IBM Public License 1.0: its text, as shipped in the JTOpen jar, unchanged. -->
+          <!-- The ibmi backend in a folder of its own, so that it is loaded together with JTOpen. -->
           <execution>
-            <id>jtopen-licence</id>
+            <id>copy-ibmi-backend</id>
             <phase>package</phase>
             <goals>
-              <goal>unpack</goal>
+              <goal>copy</goal>
             </goals>
             <configuration>
               <artifactItems>
                 <artifactItem>
-                  <groupId>net.sf.jt400</groupId>
-                  <artifactId>jt400</artifactId>
-                  <version>${jt400.version}</version>
-                  <includes>license.html</includes>
-                  <outputDirectory>${project.build.directory}/dist/licenses/jtopen</outputDirectory>
+                  <groupId>ai.generativearchitects.slay400</groupId>
+                  <artifactId>gateway-ibmi</artifactId>
+                  <version>${project.version}</version>
+                  <outputDirectory>${project.build.directory}/dist/lib/ibmi</outputDirectory>
                 </artifactItem>
               </artifactItems>
             </configuration>
@@ -125,7 +134,7 @@
           </execution>
         </executions>
       </plugin>
-      <!-- The notice for the third-party components of the distribution. -->
+      <!-- The notices, VERSION and lib/ext/README (filtered), the launcher (not filtered) and the licence of the gateway. -->
       <plugin>
         <artifactId>maven-resources-plugin</artifactId>
         <executions>
@@ -142,7 +151,39 @@
                   <directory>src/dist</directory>
                   <filtering>true</filtering>
                 </resource>
+                <resource>
+                  <directory>src/launcher</directory>
+                  <filtering>false</filtering>
+                </resource>
+                <resource>
+                  <directory>${project.basedir}/..</directory>
+                  <includes>
+                    <include>LICENSE</include>
+                  </includes>
+                  <filtering>false</filtering>
+                </resource>
               </resources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- The distribution archives, target/slay400-gateway-<version>.tar.gz and .zip, from target/dist. -->
+      <plugin>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>distribution</id>
+            <phase>package</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+            <configuration>
+              <descriptors>
+                <descriptor>src/assembly/distribution.xml</descriptor>
+              </descriptors>
+              <finalName>slay400-gateway-${project.version}</finalName>
+              <appendAssemblyId>false</appendAssemblyId>
+              <attach>false</attach>
             </configuration>
           </execution>
         </executions>

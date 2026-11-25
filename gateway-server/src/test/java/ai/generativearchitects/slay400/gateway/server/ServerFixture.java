@@ -35,12 +35,34 @@ final class ServerFixture implements AutoCloseable {
     }
 
     ServerFixture(Path dir, ServerLimits limits) {
-        this.port = freePort();
+        int[] ports = freePorts(2);
+        this.port = ports[0];
         // A free port for the management listener too, so that no test needs its default port.
-        String config = Fixtures.SHOP_CONFIG.replace("tenants:", "server:\n  port: " + port + "\nmanagement:\n  port: " + freePort() + "\ntenants:");
+        String config = Fixtures.SHOP_CONFIG.replace("tenants:", "server:\n  port: " + port + "\nmanagement:\n  port: " + ports[1] + "\ntenants:");
         StartResult result = Fixtures.start(dir, config, Map.of(), log);
         server = HelidonServer.start(result.started().orElseThrow(() -> new IllegalStateException(result.diagnostics().toString())), limits);
         // The server's own access lines go to the same list as the pipeline's.
+    }
+
+    /** Free ports, all different: each socket stays open until the next is taken. */
+    static int[] freePorts(int count) {
+        List<ServerSocket> sockets = new java.util.ArrayList<>();
+        try {
+            for (int i = 0; i < count; i++) {
+                sockets.add(new ServerSocket(0));
+            }
+            return sockets.stream().mapToInt(ServerSocket::getLocalPort).toArray();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } finally {
+            for (ServerSocket socket : sockets) {
+                try {
+                    socket.close();
+                } catch (IOException e) {
+                    // Closing a probe socket.
+                }
+            }
+        }
     }
 
     static int freePort() {

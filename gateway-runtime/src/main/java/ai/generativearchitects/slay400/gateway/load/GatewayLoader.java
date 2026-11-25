@@ -67,8 +67,9 @@ import java.util.function.Function;
  *       have a value in the environment's configuration that fits its field ({@code GWY012});</li>
  *   <li>one route table per tenant, where the same method and route twice is an error ({@code GWY013}); every mock must be
  *       valid ({@code GWY014});</li>
- *   <li>every environment's backend is available in this distribution ({@code GWY016}) and can call every operation of its
- *       tenant ({@code GWY017});</li>
+ *   <li>every environment's backend is available in this distribution ({@code GWY016}; {@code GWY026} for the {@code ibmi}
+ *       backend without the JTOpen the operator supplies, {@link OperatorLibraries}) and can call every operation of its tenant
+ *       ({@code GWY017});</li>
  *   <li>only then, every backend other than the mock is opened, with its connection check unless it is turned off
  *       ({@code GWY018}). When one cannot be opened, those already opened are closed again.</li>
  * </ol>
@@ -152,7 +153,7 @@ public final class GatewayLoader {
                 found.add(error("GWY021", "A bundle file changed while it was read; start again when it is complete", config.tenants().get(0).at()));
                 return new StartResult(Optional.empty(), found);
             }
-            compiled = compile(config, listing, snapshot, providers, limits, false);
+            compiled = compile(config, listing, snapshot, providers, limits, false, options.unavailable());
             content = snapshot.content(listing);
         } catch (IOException e) {
             found.add(error("GWY021", "A bundle file cannot be read (" + e.getClass().getSimpleName() + ")", config.tenants().get(0).at()));
@@ -223,7 +224,7 @@ public final class GatewayLoader {
      * @param reload whether this is a reload, where a tenant without a bundle is an error of its own ({@code GWY020})
      */
     static Compiled compile(GatewayConfig config, BundleListing listing, BundleSnapshot snapshot, Map<Backend, BackendProvider> providers, ReadLimits limits,
-                            boolean reload) {
+                            boolean reload, Map<Backend, StartOptions.Unavailable> unavailable) {
         List<Diagnostic> found = new ArrayList<>();
         List<TenantDraft> drafts = new ArrayList<>();
         for (TenantConfig tenant : config.tenants()) {
@@ -232,7 +233,7 @@ public final class GatewayLoader {
                 found.add(error("GWY020", "The tenant " + tenant.name() + " has no bundle file left; a tenant serves at least one bundle", tenant.at()));
                 continue;
             }
-            tenant(tenant, files, snapshot, limits, providers, found).ifPresent(drafts::add);
+            tenant(tenant, files, snapshot, limits, providers, unavailable, found).ifPresent(drafts::add);
         }
         return new Compiled(List.copyOf(drafts), List.copyOf(found));
     }
@@ -273,7 +274,8 @@ public final class GatewayLoader {
     }
 
     private static Optional<TenantDraft> tenant(TenantConfig tenant, List<BundleListing.Listed> files, BundleSnapshot snapshot, ReadLimits limits,
-                                                Map<Backend, BackendProvider> providers, List<Diagnostic> found) {
+                                                Map<Backend, BackendProvider> providers, Map<Backend, StartOptions.Unavailable> unavailable,
+                                                List<Diagnostic> found) {
         int errorsBefore = errors(found);
         // Step 3: bundles, each read from its private copy; a file entry that names no file is read where it is, for the
         // reader's own diagnostic.
@@ -349,7 +351,10 @@ public final class GatewayLoader {
             if (environment.backend() != Backend.MOCK) {
                 BackendProvider provider = providers.get(environment.backend());
                 if (provider == null) {
-                    found.add(error("GWY016", "The backend " + backendName(environment.backend()) + " of the environment " + environment.name()
+                    StartOptions.Unavailable why = unavailable.get(environment.backend());
+                    found.add(why != null ? error(why.code(), "The backend " + backendName(environment.backend()) + " of the environment " + environment.name()
+                            + " " + why.message(), environment.at())
+                            : error("GWY016", "The backend " + backendName(environment.backend()) + " of the environment " + environment.name()
                             + " is not available in this distribution", environment.at()));
                 } else if (checked.putIfAbsent(environment.backend(), true) == null) {
                     // Once per backend and tenant: the operations are the same for every environment of the tenant.
