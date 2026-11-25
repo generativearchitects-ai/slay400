@@ -1,0 +1,5 @@
+# The Windows launcher keeps Windows line ends, which cmd.exe needs for its labels.
+*.cmd text eol=crlf
+# The POSIX launcher and the CI scripts keep Unix line ends.
+*.sh text eol=lf
+gateway-server/src/launcher/bin/slay400-gateway text eol=lf
