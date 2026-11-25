@@ -127,6 +127,15 @@ class LauncherTest {
         return run(script(), environment, args);
     }
 
+    /**
+     * The home the gateway was given, as a real path: Windows may give the same folder in its short 8.3 form (RUNNER~1), as
+     * the TEMP of the runner names it.
+     */
+    private static Path home(Run run) throws IOException {
+        String line = run.out().stream().filter(l -> l.startsWith("home=")).findFirst().orElseThrow();
+        return Path.of(line.substring("home=".length())).toRealPath();
+    }
+
     private static List<String> arguments(Run run) {
         return run.out().stream().filter(line -> line.startsWith("[")).toList();
     }
@@ -138,7 +147,7 @@ class LauncherTest {
         Run run = run(Map.of(), "run", "--config", "a file with spaces.yaml", "it's", "naïve-ü-€", "exit=7");
         assertThat(run.status()).isEqualTo(7);
         assertThat(arguments(run)).containsExactly("[run]", "[--config]", "[a file with spaces.yaml]", "[it's]", "[naïve-ü-€]", "[exit=7]");
-        assertThat(run.out().get(0)).isEqualTo("home=" + home.toRealPath());
+        assertThat(home(run)).isEqualTo(home.toRealPath());
         assertThat(run.err()).isEmpty();
     }
 
@@ -171,7 +180,8 @@ class LauncherTest {
         }
         Run run = run(link, Map.of(), "via-link");
         assertThat(run.status()).isZero();
-        assertThat(run.out()).contains("home=" + home.toRealPath(), "[via-link]");
+        assertThat(home(run)).isEqualTo(home.toRealPath());
+        assertThat(arguments(run)).containsExactly("[via-link]");
     }
 
     // ---- Java
