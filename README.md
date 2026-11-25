@@ -58,7 +58,7 @@ slay400-gateway help
 
 `check` does everything a start does up to listening, with the same diagnostics, and opens no connection to an IBM i.
 `JAVA_OPTS` and `SLAY400_GATEWAY_OPTS` go to the JVM. Exit codes: 0, 1 when the start or the check finds an error, 2 for a
-usage error, 3 when no Java 21 or later is found, 143 after `SIGTERM`.
+usage error, 70 when no Java 21 or later is found (the value of the `slay400` launcher), 143 after `SIGTERM`.
 
 ### JTOpen for the ibmi backend
 

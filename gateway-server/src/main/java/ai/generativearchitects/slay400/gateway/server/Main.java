@@ -31,7 +31,7 @@ import java.util.stream.Stream;
  * </ul>
  *
  * <p>Exit codes: 0 after a normal stop, a check without errors, the version or the usage asked for; 1 when the start or the
- * check finds an error (the report goes to standard error); 2 for a usage error; 3, from the launcher only, when no Java 21 or
+ * check finds an error (the report goes to standard error); 2 for a usage error; 70, from the launcher only, when no Java 21 or
  * later is found; 143 after {@code SIGTERM}.
  */
 public final class Main {

@@ -24,7 +24,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * The launch scripts, {@code bin/slay400-gateway} and {@code bin/slay400-gateway.cmd} (gateway kickoff 10), as the rules of
  * the launcher of {@code slay400-core} ask: Java from {@code JAVA_HOME}, else from the {@code PATH}, version 21 or later or one
- * sentence and exit status 3; arguments untouched; the exit status returned; symbolic links followed; {@code JAVA_OPTS} and
+ * sentence and exit status 70 (as the {@code slay400} launcher, decision C283); arguments untouched; the exit status returned; symbolic links followed; {@code JAVA_OPTS} and
  * {@code SLAY400_GATEWAY_OPTS} passed to the JVM. Each test runs the script of this operating system over a distribution of
  * its own, whose {@code Main} only echoes what it got.
  */
@@ -41,6 +41,7 @@ class LauncherTest {
                     java.io.PrintStream out = new java.io.PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.out), true, "UTF-8");
                     out.println("home=" + System.getProperty("slay400.gateway.home"));
                     out.println("opt=" + System.getProperty("test.opt") + "," + System.getProperty("test.opt2"));
+                    out.println("label=" + System.getProperty("test.label"));
                     int exit = 0;
                     for (String arg : args) {
                         out.println("[" + arg + "]");
@@ -168,6 +169,52 @@ class LauncherTest {
         assertThat(run.out()).contains("opt=one,two");
     }
 
+    // ---- JAVA_TOOL_OPTIONS and _JAVA_OPTIONS
+
+    /**
+     * With either variable set, even empty, the JVM prints "Picked up ..." before its version; the value may hold the word
+     * version and double quotes. The launcher must still read the version, and the JVM still gets the option (found in the
+     * review of the {@code slay400} launcher, slay400-core PR #22).
+     */
+    @Test
+    void javaToolOptionsAndJavaOptionsDoNotHideTheVersion() throws Exception {
+        // A value that a reader of the first quoted text would take for the version.
+        String tricky = "\"-Dtest.label=the version \\\"1.2\\\"\"";
+        for (Map<String, String> environment : List.of(Map.of("JAVA_TOOL_OPTIONS", ""), Map.of("JAVA_TOOL_OPTIONS", "-Dtest.label=tool"),
+                Map.of("_JAVA_OPTIONS", "-Dtest.label=java"), Map.of("JAVA_TOOL_OPTIONS", "\"-Dtest.label=a version b\""))) {
+            Run run = run(environment, "ok");
+            assertThat(run.status()).as(environment.toString()).isZero();
+            assertThat(arguments(run)).as(environment.toString()).containsExactly("[ok]");
+        }
+        assertThat(run(Map.of("JAVA_TOOL_OPTIONS", "\"-Dtest.label=a version b\""), "ok").out()).contains("label=a version b");
+        if (!WINDOWS) {
+            // On a POSIX system a quote inside the value as well; cmd.exe cannot hold such a value in a variable reliably.
+            Run run = run(Map.of("JAVA_TOOL_OPTIONS", tricky), "ok");
+            assertThat(run.status()).as(run.err()).isZero();
+        }
+    }
+
+    @Test
+    void anOlderJavaWithJavaToolOptionsIsStillRefusedWith70() throws Exception {
+        String older = WINDOWS ? java17() : fakeJavaPickingUp("java17-picked", "openjdk version \"17.0.13\" 2024-10-15").toString();
+        assumeTrue(older != null, "SLAY400_TEST_JAVA17 names a Java 17 in CI");
+        Map<String, String> environment = new HashMap<>();
+        environment.put("JAVA_HOME", older);
+        environment.put("JAVA_TOOL_OPTIONS", "\"-Dtest.label=version 99\"");
+        Run run = run(environment, "run");
+        assertThat(run.status()).isEqualTo(70);
+        assertThat(run.err()).startsWith("slay400-gateway needs Java 21 or later and found 17.");
+    }
+
+    /** A fake Java that prints a "Picked up" line, with a quoted value holding the word version, before its version line. */
+    private Path fakeJavaPickingUp(String name, String versionLine) throws IOException {
+        Path bin = Files.createDirectories(dir.resolve(name + "/bin"));
+        Path java = bin.resolve("java");
+        Files.writeString(java, "#!/bin/sh\necho 'Picked up JAVA_TOOL_OPTIONS: \"-Dtest.label=version 99\"' >&2\necho '" + versionLine + "' >&2\nexit 0\n");
+        Files.setPosixFilePermissions(java, PosixFilePermissions.fromString("rwxr-xr-x"));
+        return bin.getParent();
+    }
+
     // ---- symbolic links
 
     @Test
@@ -216,22 +263,22 @@ class LauncherTest {
     }
 
     @Test
-    void withoutJavaTheLauncherSaysSoAndExitsWith3() throws Exception {
+    void withoutJavaTheLauncherSaysSoAndExitsWith70() throws Exception {
         Map<String, String> environment = new HashMap<>();
         environment.put("JAVA_HOME", null);
         environment.put("PATH", WINDOWS ? System.getenv("SystemRoot") + "\\System32" : toolsWithoutJava().toString());
         Run run = run(environment, "run");
-        assertThat(run.status()).isEqualTo(3);
+        assertThat(run.status()).isEqualTo(70);
         assertThat(run.err()).isEqualTo("slay400-gateway needs Java 21 or later and found no Java: set JAVA_HOME or put java on the PATH.");
         assertThat(run.out()).isEmpty();
         // A JAVA_HOME without java in it is no Java either.
         Run empty = run(Map.of("JAVA_HOME", Files.createDirectories(dir.resolve("empty-jdk")).toString()), "run");
-        assertThat(empty.status()).isEqualTo(3);
+        assertThat(empty.status()).isEqualTo(70);
         assertThat(empty.err()).startsWith("slay400-gateway needs Java 21 or later");
     }
 
     @Test
-    void anOlderJavaIsNamedAndExitsWith3() throws Exception {
+    void anOlderJavaIsNamedAndExitsWith70() throws Exception {
         String java17;
         if (WINDOWS) {
             java17 = java17();
@@ -240,11 +287,11 @@ class LauncherTest {
             java17 = fakeJava("java17", "openjdk version \"17.0.13\" 2024-10-15").toString();
             Path java8 = fakeJava("java8", "java version \"1.8.0_402\"");
             Run old = run(Map.of("JAVA_HOME", java8.toString()), "run");
-            assertThat(old.status()).isEqualTo(3);
+            assertThat(old.status()).isEqualTo(70);
             assertThat(old.err()).isEqualTo("slay400-gateway needs Java 21 or later and found 1.8.0_402 at " + java8.resolve("bin/java") + ".");
         }
         Run run = run(Map.of("JAVA_HOME", java17), "run");
-        assertThat(run.status()).isEqualTo(3);
+        assertThat(run.status()).isEqualTo(70);
         assertThat(run.err()).startsWith("slay400-gateway needs Java 21 or later and found 17.").contains(java17);
         assertThat(run.out()).isEmpty();
     }
@@ -261,6 +308,6 @@ class LauncherTest {
         Map<String, String> fromPath = new HashMap<>();
         fromPath.put("JAVA_HOME", null);
         fromPath.put("PATH", path);
-        assertThat(run(fromPath, "ok").status()).isEqualTo(3);
+        assertThat(run(fromPath, "ok").status()).isEqualTo(70);
     }
 }

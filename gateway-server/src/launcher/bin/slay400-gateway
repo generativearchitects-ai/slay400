@@ -2,7 +2,7 @@
 # slay400-gateway: starts the gateway of this distribution (gateway kickoff 10, decision 147).
 #
 # Java: $JAVA_HOME/bin/java when JAVA_HOME is set, otherwise java from the PATH; version 21 or later, otherwise one sentence
-# and exit status 3. $JAVA_OPTS and $SLAY400_GATEWAY_OPTS, when set, are passed to the JVM. Every argument is passed on
+# and exit status 70, the value of the slay400 launcher (decision C283), which the gateway uses for nothing else. $JAVA_OPTS and $SLAY400_GATEWAY_OPTS, when set, are passed to the JVM. Every argument is passed on
 # unchanged, and the exit status is the gateway's. The script resolves symbolic links to itself, writes nothing and uses no
 # network.
 
@@ -25,18 +25,20 @@ else
 fi
 if [ -z "$java" ] || [ ! -x "$java" ]; then
   echo "slay400-gateway needs Java 21 or later and found no Java: set JAVA_HOME or put java on the PATH." >&2
-  exit 3
+  exit 70
 fi
 
-# Its version: the first quoted text of "java -version", for example 21.0.13 or 1.8.0_402.
-version=$("$java" -version 2>&1 | sed -n 's/^[^"]*"\([^"]*\)".*/\1/p' | head -n 1)
+# Its version, from the line of "java -version" that is one word, "version" and the quoted version, for example
+# openjdk version "21.0.13" or java version "1.8.0_402". Not the first line: with JAVA_TOOL_OPTIONS or _JAVA_OPTIONS set,
+# even empty, the JVM first prints "Picked up ...", whose value may hold the word version and quotes of its own.
+version=$("$java" -version 2>&1 | sed -n 's/^[^ "]* version "\([^"]*\)".*/\1/p' | head -n 1)
 case $version in
   1.*) major=$(echo "$version" | cut -d. -f2) ;;
   *) major=$(echo "$version" | sed 's/[^0-9].*//') ;;
 esac
 if [ -z "$major" ] || [ "$major" -lt 21 ] 2>/dev/null; then
   echo "slay400-gateway needs Java 21 or later and found ${version:-no version} at $java." >&2
-  exit 3
+  exit 70
 fi
 
 # JAVA_OPTS and SLAY400_GATEWAY_OPTS are split into words on purpose, as for other Java launchers.
