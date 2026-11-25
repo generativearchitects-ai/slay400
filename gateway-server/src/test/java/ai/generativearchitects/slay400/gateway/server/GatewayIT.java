@@ -44,6 +44,8 @@ class GatewayIT {
         return """
                 server:
                   port: %d
+                management:
+                  port: 0
                 tenants:
                   acme:
                     bundles: [./ibmi-1.0.0.rpgapi]

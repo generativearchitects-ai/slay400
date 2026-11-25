@@ -40,3 +40,21 @@ jobs:
           name: pit-reports
           path: '*/target/pit-reports'
           if-no-files-found: ignore
+
+  # The container image (kickoff 08): built from the distribution of the Maven build and tested here. It is never pushed:
+  # publishing an image is the owner's decision (decision 130). No registry login and no secret.
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build the distribution
+        run: ./mvnw -B package -DskipTests
+      - name: Build the image
+        run: docker build --build-arg REVISION="$GITHUB_SHA" -t gateway:ci .
+      - name: Test the image
+        run: ci/container-test.sh

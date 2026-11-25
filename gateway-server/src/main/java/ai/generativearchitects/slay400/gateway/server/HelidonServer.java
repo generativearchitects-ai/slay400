@@ -1,5 +1,11 @@
 package ai.generativearchitects.slay400.gateway.server;
 
+import ai.generativearchitects.slay400.gateway.config.ManagementConfig;
+import ai.generativearchitects.slay400.gateway.load.TlsWatcher;
+import ai.generativearchitects.slay400.gateway.tls.TlsMaterial;
+import io.helidon.common.tls.Tls;
+import io.helidon.webserver.ListenerConfig;
+import io.helidon.webserver.WebServerConfig;
 import ai.generativearchitects.slay400.gateway.load.Started;
 import ai.generativearchitects.slay400.gateway.pipeline.ClientGoneException;
 import ai.generativearchitects.slay400.gateway.pipeline.Gateway;
@@ -43,17 +49,55 @@ public final class HelidonServer {
     private HelidonServer() {
     }
 
-    /** Starts listening on the address and port of the configuration, with the {@link ServerLimits#DEFAULTS}. */
+    /**
+     * How long a listener that stops waits for the requests in flight to finish: 5 seconds, so that a stop on SIGTERM ends well
+     * within the 10 seconds a container is given by default (kickoff 08).
+     */
+    static final java.time.Duration SHUTDOWN_GRACE = java.time.Duration.ofSeconds(5);
+
+    /** The name of the management listener's socket. */
+    static final String MANAGEMENT = "management";
+
+    /** Starts the listeners of the configuration, with the {@link ServerLimits#DEFAULTS}. */
     public static WebServer start(Started started) {
         return start(started, ServerLimits.DEFAULTS);
     }
 
-    /** Starts listening on the address and port of the configuration, with these limits. */
+    /**
+     * Starts the API listener on the address and port of the configuration, with TLS when {@code server.tls} is set, and the
+     * management listener unless its port is 0 (kickoff 08). Both have these limits. The management listener answers the health
+     * paths only; it never serves an operation. A new certificate and key taken by the {@link TlsWatcher} replace those of the
+     * API listener for new connections.
+     */
     static WebServer start(Started started, ServerLimits limits) {
         Gateway gateway = started.gateway();
-        return WebServer.builder()
-                .host(started.config().host())
+        WebServerConfig.Builder builder = WebServer.builder();
+        listener(builder, limits, gateway)
+                .host(started.config().address())
                 .port(started.config().port())
+                .routing(routing -> routing.any((req, res) -> handle(gateway, limits, req, res)));
+        started.tls().ifPresent(watcher -> builder.tls(tls(watcher.current())));
+        ManagementConfig management = started.config().management();
+        if (management.enabled()) {
+            builder.putSocket(MANAGEMENT, socket -> listener(socket, limits, gateway).host(management.address()).port(management.port()));
+            builder.routing(MANAGEMENT, routing -> routing.any((req, res) -> management(gateway, limits, req, res)));
+        }
+        WebServer server = builder.build().start();
+        started.tls().ifPresent(watcher -> watcher.onChange(material -> server.reloadTls(tls(material))));
+        return server;
+    }
+
+    /** The TLS of the API listener: this certificate and key, TLS 1.3 and 1.2 only, the JDK's cipher suites, no client certificate. */
+    static Tls tls(TlsMaterial material) {
+        // Key and chain rather than a ready context: Helidon builds its context with a key manager it can replace in a running
+        // listener, which a context given to it it cannot.
+        return Tls.builder().privateKey(material.privateKey()).privateKeyCertChain(material.certificateChain()).enabledProtocols(TlsMaterial.PROTOCOLS)
+                .build();
+    }
+
+    /** What both listeners have: the limits, HTTP/1 only, and the problem bodies of what Helidon answers by itself. */
+    private static <B extends ListenerConfig.BuilderBase<B, ?>> B listener(B builder, ServerLimits limits, Gateway gateway) {
+        return builder
                 .maxPayloadSize(limits.maxPayloadBytes())
                 .maxTcpConnections(limits.maxConnections())
                 .idleConnectionTimeout(limits.idleTimeout())
@@ -66,9 +110,25 @@ public final class HelidonServer {
                 .protocolsDiscoverServices(false)
                 .addProtocol(Http1Config.builder().maxPrologueLength(limits.maxRequestLineBytes()).maxHeadersSize(limits.maxHeadersBytes()).build())
                 .directHandlers(directHandlers(gateway))
-                .routing(routing -> routing.any((req, res) -> handle(gateway, limits, req, res)))
-                .build()
-                .start();
+                .shutdownGracePeriod(SHUTDOWN_GRACE);
+    }
+
+    /** The management listener: the health paths, through the pipeline as on the API listener; anything else is 404. */
+    private static void management(Gateway gateway, ServerLimits limits, ServerRequest req, ServerResponse res) {
+        String path = req.prologue().uriPath().rawPath();
+        if (path.equals("/health/live") || path.equals("/health/ready")) {
+            handle(gateway, limits, req, res);
+            return;
+        }
+        String correlationId = UUID.randomUUID().toString();
+        ProblemDetails problem = ProblemDetails.of(ProblemKind.NOT_FOUND, "");
+        gateway.refused(req.prologue().method().text(), problem.status(), correlationId, slug(problem.type()));
+        res.status(Status.create(problem.status()));
+        res.header("X-Content-Type-Options", "nosniff");
+        res.header("Cache-Control", "no-store");
+        res.header(Gateway.CORRELATION_HEADER, correlationId);
+        res.header(HeaderNames.CONTENT_TYPE.defaultCase(), ProblemDetails.CONTENT_TYPE);
+        res.send(problem.withContext("", "", correlationId).toJson());
     }
 
     private static void handle(Gateway gateway, ServerLimits limits, ServerRequest req, ServerResponse res) {

@@ -41,7 +41,7 @@ import org.snakeyaml.engine.v2.schema.CoreSchema;
  * <p>Diagnostic codes: {@code GWY001} the file cannot be read or is not YAML for this tool; {@code GWY002} unknown key;
  * {@code GWY003} wrong type; {@code GWY004} empty section or value; {@code GWY005} missing key; {@code GWY006} invalid value;
  * {@code GWY007} environment variable not set; {@code GWY008} edition limit ({@link EditionLimits}); {@code GWY009} repeated key;
- * {@code GWY015} a credential written in the file instead of a single {@code ${NAME}} placeholder.
+ * {@code GWY015} a credential or the TLS key password written in the file instead of a single {@code ${NAME}} placeholder.
  */
 public final class ConfigReader {
 
@@ -172,30 +172,41 @@ public final class ConfigReader {
     }
 
     private Optional<GatewayConfig> top(Node root) {
-        Optional<Map<String, Node>> entries = entries(root, Set.of("server", "reload", "tenants"), "The configuration");
+        Optional<Map<String, Node>> entries = entries(root, Set.of("server", "management", "reload", "tenants"), "The configuration");
         if (entries.isEmpty()) {
             return Optional.empty();
         }
-        String host = GatewayConfig.DEFAULT_HOST;
+        String address = GatewayConfig.DEFAULT_ADDRESS;
         int port = GatewayConfig.DEFAULT_PORT;
+        Optional<TlsSettings> tls = Optional.empty();
         Node server = entries.get().get("server");
         if (server != null) {
-            Optional<Map<String, Node>> settings = entries(server, Set.of("host", "port"), "The section server");
+            Optional<Map<String, Node>> settings = entries(server, Set.of("address", "port", "tls", "host"), "The section server");
             if (settings.isPresent()) {
-                Node hostNode = settings.get().get("host");
-                if (hostNode != null) {
-                    host = text(hostNode, "server.host").filter(h -> {
-                        boolean ok = h.chars().noneMatch(Character::isWhitespace);
-                        if (!ok) {
-                            error("GWY006", "server.host must not contain white space", at(hostNode));
-                        }
-                        return ok;
-                    }).orElse(host);
+                if (settings.get().containsKey("host")) {
+                    error("GWY002", "Unknown key host: the address of the listener is server.address", at(keyNode(server, "host")));
                 }
+                address = address(settings.get().get("address"), "server.address").orElse(address);
                 Node portNode = settings.get().get("port");
                 if (portNode != null) {
                     port = port(portNode).orElse(port);
                 }
+                Node tlsNode = settings.get().get("tls");
+                if (tlsNode != null) {
+                    tls = tls(tlsNode);
+                }
+            }
+        }
+        ManagementConfig management = ManagementConfig.DEFAULTS;
+        Node managementNode = entries.get().get("management");
+        if (managementNode != null) {
+            Optional<Map<String, Node>> settings = entries(managementNode, Set.of("address", "port"), "The section management");
+            if (settings.isPresent()) {
+                String managementAddress = address(settings.get().get("address"), "management.address").orElse(ManagementConfig.DEFAULT_ADDRESS);
+                Node portNode = settings.get().get("port");
+                int managementPort = portNode == null ? ManagementConfig.DEFAULT_PORT
+                        : whole(portNode, "management.port", 0, 65535).orElse(ManagementConfig.DEFAULT_PORT);
+                management = new ManagementConfig(managementAddress, managementPort);
             }
         }
         int reloadInterval = GatewayConfig.DEFAULT_RELOAD_INTERVAL_SECONDS;
@@ -221,7 +232,67 @@ public final class ConfigReader {
         if (!problems.isEmpty()) {
             return Optional.empty();
         }
-        return Optional.of(new GatewayConfig(host, port, tenants, file, reloadInterval));
+        return Optional.of(new GatewayConfig(address, port, tls, management, tenants, file, reloadInterval));
+    }
+
+    /** A listen address: any text without white space; empty when the key is absent or the value is refused. */
+    private Optional<String> address(Node node, String what) {
+        if (node == null) {
+            return Optional.empty();
+        }
+        return text(node, what).filter(value -> {
+            boolean ok = value.chars().noneMatch(Character::isWhitespace);
+            if (!ok) {
+                error("GWY006", what + " must not contain white space", at(node));
+            }
+            return ok;
+        });
+    }
+
+    /**
+     * The section {@code server.tls}: {@code certificate} and {@code key}, file names relative to the configuration file, and an
+     * optional {@code keyPassword}, which must be exactly one {@code ${NAME}} placeholder (GWY015, as a credential).
+     */
+    private Optional<TlsSettings> tls(Node node) {
+        Optional<Map<String, Node>> entries = entries(node, Set.of("certificate", "key", "keyPassword"), "The section server.tls");
+        if (entries.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<Path> certificate = tlsFile(entries.get().get("certificate"), "certificate", node);
+        Optional<Path> key = tlsFile(entries.get().get("key"), "key", node);
+        Optional<char[]> password = Optional.empty();
+        Node passwordNode = entries.get().get("keyPassword");
+        if (passwordNode != null) {
+            if (!(passwordNode instanceof ScalarNode scalar) || !SINGLE_PLACEHOLDER.matcher(scalar.getValue()).matches()) {
+                error("GWY015", "server.tls.keyPassword must be a single ${NAME} placeholder for an environment variable; a value written in the "
+                        + "configuration file is not accepted", at(passwordNode));
+                return Optional.empty();
+            }
+            Optional<String> value = text(passwordNode, "server.tls.keyPassword");
+            if (value.isEmpty()) {
+                return Optional.empty();
+            }
+            password = Optional.of(value.get().toCharArray());
+        }
+        if (certificate.isEmpty() || key.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(new TlsSettings(certificate.get(), key.get(), password));
+    }
+
+    private Optional<Path> tlsFile(Node node, String key, Node section) {
+        if (node == null) {
+            error("GWY005", "The section server.tls has no key " + key, at(section));
+            return Optional.empty();
+        }
+        return text(node, "server.tls." + key).flatMap(value -> {
+            try {
+                return Optional.of(file.toAbsolutePath().getParent().resolve(value).normalize());
+            } catch (java.nio.file.InvalidPathException e) {
+                error("GWY006", "This is not a valid file name", at(node));
+                return Optional.empty();
+            }
+        });
     }
 
     private Optional<Integer> port(Node node) {

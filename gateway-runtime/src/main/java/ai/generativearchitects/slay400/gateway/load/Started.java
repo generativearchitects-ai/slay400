@@ -5,6 +5,7 @@ import ai.generativearchitects.slay400.gateway.config.GatewayConfig;
 import ai.generativearchitects.slay400.gateway.pipeline.Gateway;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A gateway that passed every check of the start.
@@ -16,9 +17,10 @@ import java.util.Objects;
  * @param backends     the open backends of the environments, other than the mock; kept across reloads, closed by
  *                     {@link #close()}
  * @param reloader     polls the bundle files once {@link #startReloading()} is called
+ * @param tls          the certificate and key of the API listener and their rotation, when it speaks TLS
  */
-public record Started(GatewayConfig config, Gateway gateway, int environments, int operations, List<OpenBackend> backends, Reloader reloader)
-        implements AutoCloseable {
+public record Started(GatewayConfig config, Gateway gateway, int environments, int operations, List<OpenBackend> backends, Reloader reloader,
+                      Optional<TlsWatcher> tls) implements AutoCloseable {
 
     /** @throws NullPointerException if an argument is {@code null} */
     public Started {
@@ -26,11 +28,17 @@ public record Started(GatewayConfig config, Gateway gateway, int environments, i
         Objects.requireNonNull(gateway, "gateway");
         backends = List.copyOf(backends);
         Objects.requireNonNull(reloader, "reloader");
+        Objects.requireNonNull(tls, "tls");
+    }
+
+    /** A gateway without TLS. */
+    public Started(GatewayConfig config, Gateway gateway, int environments, int operations, List<OpenBackend> backends, Reloader reloader) {
+        this(config, gateway, environments, operations, backends, reloader, Optional.empty());
     }
 
     /** The one line the server logs when it listens: address, port, tenants, environments and operations. */
     public String startLine() {
-        return "{\"event\":\"started\",\"address\":\"" + config.host().replace("\\", "\\\\").replace("\"", "\\\"") + "\",\"port\":" + config.port() + ",\"tenants\":" + config.tenants().size()
+        return "{\"event\":\"started\",\"address\":\"" + config.address().replace("\\", "\\\\").replace("\"", "\\\"") + "\",\"port\":" + config.port() + ",\"tenants\":" + config.tenants().size()
                 + ",\"environments\":" + environments + ",\"operations\":" + operations + "}";
     }
 

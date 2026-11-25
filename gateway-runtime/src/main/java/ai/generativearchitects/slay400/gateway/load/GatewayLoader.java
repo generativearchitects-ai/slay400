@@ -39,6 +39,8 @@ import ai.generativearchitects.slay400.pcml.diagnostics.Severity;
 import ai.generativearchitects.slay400.pcml.model.SourceLocation;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.time.Instant;
+import ai.generativearchitects.slay400.gateway.tls.TlsMaterial;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -55,7 +57,8 @@ import java.util.function.Function;
  * The start, in the order of the brief, stopping at the first step that finds an error:
  *
  * <ol>
- *   <li>read and check the configuration ({@code GWY001} to {@code GWY008});</li>
+ *   <li>read and check the configuration ({@code GWY001} to {@code GWY008}), and the certificate and key of the API listener
+ *       when it speaks TLS ({@code GWY022} to {@code GWY025}, {@link TlsMaterial});</li>
  *   <li>list the bundle entries: a folder stands for the bundle files directly in it, and must hold one ({@code GWY019}); copy
  *       every file once, privately, up to a bound ({@code GWY021} for a file over it, or one that cannot be read or changes
  *       while it is copied);</li>
@@ -112,6 +115,16 @@ public final class GatewayLoader {
         Map<Backend, BackendProvider> providers = new EnumMap<>(Backend.class);
         options.providers().forEach(provider -> providers.put(provider.backend(), provider));
         List<Diagnostic> found = new ArrayList<>();
+        // The certificate and key of the API listener (kickoff 08): an error stops the start, a warning does not.
+        Optional<TlsMaterial> tls = Optional.empty();
+        if (config.tls().isPresent()) {
+            TlsMaterial.Result loaded = TlsMaterial.load(config.tls().get(), Instant.now());
+            found.addAll(loaded.diagnostics());
+            if (loaded.material().isEmpty()) {
+                return new StartResult(Optional.empty(), found);
+            }
+            tls = loaded.material();
+        }
         // Step 2: the entries, folders listed, every file copied once.
         Map<String, List<BundleListing.Entry>> entries = entries(config, options.files());
         BundleListing listing;
@@ -170,8 +183,19 @@ public final class GatewayLoader {
         ServedSet served = assemble(compiled.drafts(), backends);
         int environments = served.tenants().values().stream().mapToInt(t -> t.environments().size()).sum();
         Gateway gateway = new Gateway(served, limits, accessLog);
-        Reloader reloader = new Reloader(config, entries, providers, backends, gateway, limits, options, listing, content);
-        return new StartResult(Optional.of(new Started(config, gateway, environments, served.operationCount(), List.copyOf(backends.values()), reloader)), found);
+        Optional<TlsWatcher> watcher = Optional.empty();
+        if (tls.isPresent()) {
+            try {
+                watcher = Optional.of(new TlsWatcher(config.tls().get(), tls.get(), options.files(), Instant::now, config.file().toAbsolutePath().getParent()));
+            } catch (IOException e) {
+                backends.values().forEach(OpenBackend::close);
+                found.add(error("GWY022", "The TLS certificate or key file cannot be read (" + e.getClass().getSimpleName() + ")", config.tenants().get(0).at()));
+                return new StartResult(Optional.empty(), found);
+            }
+        }
+        Reloader reloader = new Reloader(config, entries, providers, backends, gateway, limits, options, listing, content, watcher);
+        return new StartResult(Optional.of(new Started(config, gateway, environments, served.operationCount(), List.copyOf(backends.values()), reloader, watcher)),
+                found);
     }
 
     /** What compiling a set of bundles came to: the tenants, before they are served, and every diagnostic. */

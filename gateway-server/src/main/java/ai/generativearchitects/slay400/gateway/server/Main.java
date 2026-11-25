@@ -76,9 +76,13 @@ public final class Main {
         System.out.println(started.startLine());
         // The bundle files are polled from now on; the configuration file is not read again (kickoff 07).
         started.startReloading();
+        // On SIGTERM: the listeners stop taking connections and wait at most HelidonServer.SHUTDOWN_GRACE for the requests in
+        // flight; then the poll thread stops and the backends close.
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("{\"event\":\"stopping\"}");
             server.stop();
             started.close();
-        }));
+            System.out.println("{\"event\":\"stopped\"}");
+        }, "slay400-shutdown"));
     }
 }

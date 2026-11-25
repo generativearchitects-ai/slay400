@@ -16,7 +16,11 @@ The gateway reads one configuration file at start:
 
 ```yaml
 server:
-  port: 8080                  # default; the address is 127.0.0.1 by default
+  address: 127.0.0.1          # default
+  port: 8080                  # default
+management:
+  address: 127.0.0.1          # default
+  port: 9090                  # default; 0 turns the management listener off
 reload:
   intervalSeconds: 10         # default; 0 turns reloading off; at most 3600
 tenants:
@@ -31,6 +35,37 @@ tenants:
 ```
 java -jar gateway-server/target/dist/gateway.jar --config gateway.yaml
 ```
+
+### The listeners
+
+- **The API listener** (`server`) serves the operations and `/health/live` and `/health/ready`. Until kickoff 08 its address
+  was `server.host`; that key is now refused at start with a message that names `server.address`.
+- **The management listener** (`management`, plain HTTP) serves `/health/live`, `/health/ready` and `/metrics`, and never an
+  operation. The API listener never serves `/metrics`. Both listeners have the same limits (request line, headers, body size,
+  idle time, connections).
+
+### HTTPS
+
+```yaml
+server:
+  address: 0.0.0.0
+  port: 8443
+  tls:
+    certificate: /etc/slay400/tls/tls.crt   # PEM: the certificate, then its chain
+    key: /etc/slay400/tls/tls.key           # PEM, PKCS#8 (-----BEGIN PRIVATE KEY----- or ENCRYPTED PRIVATE KEY)
+    keyPassword: ${TLS_KEY_PASSWORD}        # only for an encrypted key; a ${NAME} placeholder, never a value
+```
+
+With `server.tls` the API listener speaks HTTPS only, TLS 1.3 and 1.2, with the JDK's cipher suites; no client certificate is
+asked for. A key in another PEM form (`-----BEGIN RSA PRIVATE KEY-----`) is converted with `openssl pkcs8 -topk8`.
+
+A certificate or key that is missing, unreadable, not PEM, not matching each other, expired or not valid yet stops the start
+(GWY022 to GWY024); a certificate that expires within 30 days is a warning (GWY025). A password written in the file stops the
+start (GWY015). No message shows key material or the password.
+
+**Rotation.** The two files are polled with the bundle files (`reload.intervalSeconds`), with the same rules: a new pair is
+taken once it is the same at two polls in a row, and is used for new connections; a pair that cannot be used is refused with
+one warning, and the pair in use stays.
 
 ### Loading bundles without restart
 
@@ -81,6 +116,60 @@ cp demo/shop-1.1.0.rpgapi demo/bundles/shop.rpgapi.part && mv demo/bundles/shop.
 Every request answers 200. About two seconds after the copy the gateway logs
 `{"event":"reloaded","bundles":[{"tenant":"acme","name":"shop","version":"1.1.0"}],...}`, and from then on the access lines say
 `"bundleVersion":"1.1.0"`.
+
+## The container image
+
+The `Dockerfile` builds an image from the distribution of the Maven build; nothing is compiled in the image. The base image
+is Eclipse Temurin 21 (the Java runtime without a JDK) on Ubuntu 24.04, pinned by digest. The image runs as user 10001, needs
+no write access except a temporary folder, and holds no configuration, no bundle and no secret. It is not published.
+
+```
+./mvnw -B package -DskipTests
+docker build --build-arg REVISION=$(git rev-parse HEAD) -t gateway .
+```
+
+Fixed places in the container:
+
+| Path | What |
+|---|---|
+| `/etc/slay400/gateway.yaml` | the configuration; without it the gateway stops with GWY001 |
+| `/var/lib/slay400/bundles` | a folder for the bundles (name it in `bundles`) |
+| `/tmp` | the private copies of the bundles while they load: mount a small `tmpfs` |
+
+A configuration for the container listens on all addresses, and names the bundle folder and the certificate:
+
+```yaml
+server:
+  address: 0.0.0.0
+  port: 8443
+  tls:
+    certificate: /etc/slay400/tls/tls.crt
+    key: /etc/slay400/tls/tls.key
+management:
+  address: 0.0.0.0
+  port: 9090
+tenants:
+  acme:
+    bundles: [/var/lib/slay400/bundles]
+    environments:
+      test: { code: T0001, backend: mock }
+```
+
+```
+docker run --read-only --tmpfs /tmp:rw,size=300m \
+  -v $PWD/etc:/etc/slay400:ro \
+  -v $PWD/bundles:/var/lib/slay400/bundles:ro \
+  -p 8443:8443 -p 127.0.0.1:9090:9090 \
+  gateway
+```
+
+`etc/` holds `gateway.yaml` and `tls/tls.crt` and `tls/tls.key`, readable by user 10001. The `tmpfs` needs room for the
+largest set of bundles the gateway loads at once (each file is at most 132 MiB). New bundles and a new certificate are
+published by writing them into the mounted folders; the gateway takes them without a restart.
+
+**Stopping.** On `SIGTERM` (`docker stop`) the listeners stop taking connections, the requests in flight get up to 5 seconds
+to finish, then the poll thread stops and the backends close. The process exits with code 143. The default grace period of
+`docker stop`, 10 seconds, is enough.
 
 The project was called glow400 until 2026-11-16.
 
