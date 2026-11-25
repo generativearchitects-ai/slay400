@@ -66,6 +66,49 @@ jobs:
         # Also after a failed setup step, so that a run that brings new PCML back also brings their bytes.
         if: ${{ !cancelled() }}
         run: ./mvnw -B -Pibmi -pl gateway-server verify -Dtest=NONE -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=GatewayIT
+      - name: The distribution, with JTOpen supplied as the README says (kickoff 10)
+        # The distribution holds no JTOpen (decision 143): it is downloaded and checked with the two commands of the README,
+        # into lib/ext, then the gateway is started with its launcher and makes one call to the system.
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORK=$(mktemp -d)
+          tar -xzf gateway-server/target/slay400-gateway-*.tar.gz -C "$WORK"
+          GATEWAY=$(echo "$WORK"/slay400-gateway-*)
+          cd "$GATEWAY"
+          curl -fLo lib/ext/jt400-21.0.7.jar https://repo1.maven.org/maven2/net/sf/jt400/jt400/21.0.7/jt400-21.0.7.jar
+          echo "d2c06bba78d20b4733a3fabc9fe6ccabac337f7298bea95c6766108fa0b420f8  lib/ext/jt400-21.0.7.jar" | sha256sum -c -
+          cd "$GITHUB_WORKSPACE"
+          ./mvnw -B -q -f fixtures/ibmi/pom.xml package -Dpcml.attach=false -Dpcml.bundleFile="$WORK/ibmi.rpgapi"
+          cat > "$WORK/gateway.yaml" <<'YAML'
+          server: { port: 18080 }
+          management: { port: 19090 }
+          reload: { intervalSeconds: 0 }
+          tenants:
+            acme:
+              bundles: [./ibmi.rpgapi]
+              environments:
+                test:
+                  code: T0001
+                  backend: ibmi
+                  host: ${IBMI_HOST}
+                  libraryList: ["${IBMI_LIBRARY}"]
+                  credentials: { user: "${IBMI_USER}", password: "${IBMI_PASSWORD}" }
+                  pool: { maxConnections: 1 }
+          YAML
+          "$GATEWAY/bin/slay400-gateway" check --config "$WORK/gateway.yaml"
+          "$GATEWAY/bin/slay400-gateway" run --config "$WORK/gateway.yaml" > "$WORK/out.log" 2> "$WORK/err.log" &
+          PID=$!
+          for _ in $(seq 1 60); do curl -fsS -o /dev/null http://127.0.0.1:19090/health/ready && break; sleep 1; done
+          grep '"event":"started"' "$WORK/out.log"
+          grep -q '"jt400":"21.0.7"' "$WORK/out.log"
+          STATUS=$(curl -s -o "$WORK/answer.json" -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
+            -d '{"text":"HELLO","packed":"-12.34","zoned":42,"whole":-7}' http://127.0.0.1:18080/acme/test/scalars)
+          echo "POST /acme/test/scalars -> $STATUS $(cat "$WORK/answer.json")"
+          kill -TERM "$PID"
+          wait "$PID" || true
+          [ "$STATUS" = 200 ]
       - name: Keep the compiler's PCML, the differences and the spike report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

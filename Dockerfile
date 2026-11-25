@@ -1,5 +1,6 @@
-# The gateway image (kickoff 08, Part B). It is built from the distribution that the Maven build writes to
-# gateway-server/target/dist; nothing is compiled here. Build it after ./mvnw -B package:
+# The gateway image (kickoff 08, Part B; kickoff 10). It is built from the distribution that the Maven build writes to
+# gateway-server/target/dist; nothing is compiled here. JTOpen is not in it (decision 143): an operator with an ibmi
+# environment mounts a folder with the JTOpen jar at /opt/slay400/ext. Build it after ./mvnw -B package:
 #
 #   docker build --build-arg REVISION=$(git rev-parse HEAD) -t gateway .
 #
@@ -24,20 +25,24 @@ LABEL org.opencontainers.image.title="${PRODUCT} gateway, Community Edition" \
 # A fixed user and group that are not root, with no home and no shell.
 RUN groupadd --system --gid 10001 gateway \
     && useradd --system --uid 10001 --gid 10001 --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin gateway \
-    && mkdir -p "/etc/${PRODUCT}" "/var/lib/${PRODUCT}/bundles"
+    && mkdir -p "/etc/${PRODUCT}" "/var/lib/${PRODUCT}/bundles" "/opt/${PRODUCT}/ext"
 
-# The distribution, the licence, the notices of the third-party components and the software bill of materials.
-COPY gateway-server/target/dist/ /opt/gateway/
-COPY LICENSE /opt/gateway/LICENSE
+# The distribution: the launcher, the libraries, the licence, the notices and the software bill of materials.
+COPY gateway-server/target/dist/ /opt/${PRODUCT}/
+RUN chmod 0755 "/opt/${PRODUCT}/bin/slay400-gateway"
 
-ENV GATEWAY_CONFIG=/etc/${PRODUCT}/gateway.yaml
+# The folder for the operator's libraries (JTOpen), a mount; the options of the JVM.
+ENV SLAY400_GATEWAY_EXT=/opt/${PRODUCT}/ext \
+    JAVA_OPTS="-XX:+ExitOnOutOfMemoryError -Djava.io.tmpdir=/tmp"
 
 USER 10001:10001
-WORKDIR /opt/gateway
+WORKDIR /opt/${PRODUCT}
 
 # The API listener and the management listener, on their default ports; the configuration sets the addresses.
 EXPOSE 8080 9090
 
-# exec: Java is process 1 and receives SIGTERM itself, so that the gateway stops cleanly within the grace period.
+# The launcher execs Java, so that Java is process 1 and receives SIGTERM itself and the gateway stops cleanly within the
+# grace period. The command can be replaced, for example by "check --config /etc/slay400/gateway.yaml".
 STOPSIGNAL SIGTERM
-ENTRYPOINT ["/bin/sh", "-c", "exec java -XX:+ExitOnOutOfMemoryError -Djava.io.tmpdir=/tmp -jar /opt/gateway/gateway.jar --config \"$GATEWAY_CONFIG\""]
+ENTRYPOINT ["/opt/slay400/bin/slay400-gateway"]
+CMD ["run", "--config", "/etc/slay400/gateway.yaml"]
