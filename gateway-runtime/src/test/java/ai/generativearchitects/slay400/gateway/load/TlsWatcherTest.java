@@ -58,9 +58,24 @@ class TlsWatcherTest {
 
         @Override
         public void copy(Path file, OutputStream to) throws IOException {
-            system.copy(file, to);
+            // Counts the bytes the watcher took before it stopped the copy.
+            system.copy(file, new java.io.FilterOutputStream(to) {
+                @Override
+                public void write(byte[] b, int off, int len) throws IOException {
+                    copied.addAndGet(len);
+                    out.write(b, off, len);
+                }
+
+                @Override
+                public void write(int b) throws IOException {
+                    copied.incrementAndGet();
+                    out.write(b);
+                }
+            });
         }
     };
+
+    private final java.util.concurrent.atomic.AtomicLong copied = new java.util.concurrent.atomic.AtomicLong();
 
     @BeforeEach
     void paths() {
@@ -214,6 +229,33 @@ class TlsWatcherTest {
                     "The TLS certificate and key files could not be polled (AccessDeniedException); the pair in use stays. The polls go on; this is reported again only if the failure changes");
             assertThat(messages(log, Level.INFO)).containsExactly("The TLS certificate and key files can be polled again");
         }
+        assertThat(taken).isEmpty();
+    }
+
+    @Test
+    void aFileOverTheBoundIsNotReadWholeAndThePairIsRefused() throws IOException {
+        TestCertificates.Pair first = TestCertificates.rsa(dir, "first", 365);
+        TlsWatcher watcher = watcher(first);
+        // 2 MiB at the place of the certificate: twice the bound of a PEM file.
+        Files.write(settings.certificate(), new byte[2 * TlsMaterial.MAX_FILE_BYTES]);
+        touch();
+        copied.set(0);
+        try (LogCapture log = new LogCapture("slay400.gateway")) {
+            for (int i = 0; i < 4; i++) {
+                watcher.poll();
+            }
+            // The comparison read stopped at the bound, give or take one buffer of the copy.
+            assertThat(copied.get()).isLessThanOrEqualTo(TlsMaterial.MAX_FILE_BYTES + 64 * 1024);
+            List<String> warnings = messages(log, Level.WARNING);
+            assertThat(warnings).hasSize(1);
+            assertThat(warnings.get(0)).contains("GWY022").contains("tls.crt is larger than 1048576 bytes");
+        }
+        assertThat(taken).isEmpty();
+        assertThat(watcher.current().certificateChain().get(0)).isEqualTo(first.certificate());
+        // The good pair back is no change.
+        install(first, first);
+        watcher.poll();
+        watcher.poll();
         assertThat(taken).isEmpty();
     }
 }

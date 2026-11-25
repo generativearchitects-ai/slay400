@@ -53,8 +53,8 @@ public final class TlsMaterial {
     /** A certificate that expires within this many days is a warning. */
     public static final int WARN_DAYS = 30;
 
-    /** The largest PEM file read, in bytes. */
-    static final int MAX_FILE_BYTES = 1024 * 1024;
+    /** The largest PEM file read, in bytes; a larger one is refused (GWY022) without being read further. */
+    public static final int MAX_FILE_BYTES = 1024 * 1024;
 
     private static final Pattern BLOCK = Pattern.compile("-----BEGIN ([A-Z0-9 ]+)-----([A-Za-z0-9+/=\\s]*)-----END \\1-----");
 

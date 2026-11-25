@@ -6,8 +6,8 @@ import ai.generativearchitects.slay400.pcml.diagnostics.Diagnostic;
 import ai.generativearchitects.slay400.pcml.diagnostics.Severity;
 import ai.generativearchitects.slay400.report.Report;
 import ai.generativearchitects.slay400.report.TextReport;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -144,18 +144,64 @@ public final class TlsWatcher {
         return List.of(files.stamp(settings.certificate()), files.stamp(settings.key()));
     }
 
-    /** The SHA-256 of the two files together: two pairs with the same content are the same pair. */
+    /**
+     * The SHA-256 of the two files together: two pairs with the same content are the same pair. Each file is read at most up to
+     * {@link TlsMaterial#MAX_FILE_BYTES}, the bound of {@link TlsMaterial} (review of PR #9): a larger one is not read further,
+     * and its content is "too large", which no pair in use has, so that the pair is loaded and refused (GWY022).
+     */
     private String content() throws IOException {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             for (Path file : List.of(settings.certificate(), settings.key())) {
-                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-                files.copy(file, bytes);
-                digest.update(MessageDigest.getInstance("SHA-256").digest(bytes.toByteArray()));
+                MessageDigest one = MessageDigest.getInstance("SHA-256");
+                try (Bounded out = new Bounded(one, TlsMaterial.MAX_FILE_BYTES)) {
+                    files.copy(file, out);
+                } catch (Bounded.TooLarge e) {
+                    return "too-large";
+                }
+                digest.update(one.digest());
             }
             return HexFormat.of().formatHex(digest.digest());
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 is missing from this Java", e);
+        }
+    }
+
+    /** Hashes what is written, and stops at the bound. */
+    private static final class Bounded extends OutputStream {
+        private final MessageDigest digest;
+        private final long max;
+        private long written;
+
+        /** Thrown when more bytes arrive than the bound allows. */
+        static final class TooLarge extends IOException {
+            TooLarge() {
+                super("over the bound");
+            }
+        }
+
+        Bounded(MessageDigest digest, long max) {
+            this.digest = digest;
+            this.max = max;
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            count(1);
+            digest.update((byte) b);
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            count(len);
+            digest.update(b, off, len);
+        }
+
+        private void count(int bytes) throws TooLarge {
+            written += bytes;
+            if (written > max) {
+                throw new TooLarge();
+            }
         }
     }
 }
