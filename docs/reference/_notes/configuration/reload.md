@@ -1,0 +1,1 @@
+While it runs, the gateway looks at its bundle files every `reload.intervalSeconds` and serves a new set of bundles without a restart, once the files are the same at two looks in a row. A set that fails its checks is refused with one warning, and the set in use stays. The configuration file itself is not read again.
