@@ -135,15 +135,17 @@ order.total = 123.45;
 return;
 ```
 
-These commands copy the source to your home folder on the system, compile it into `<your-library>` with `PGMINFO(*PCML)`, which makes the compiler write the PCML of the program, and copy the PCML back next to the overlay:
+These commands copy the source to your home folder on the system, compile it into `<your-library>` with `PGMINFO(*PCML)`, which makes the compiler write the PCML of the program, and copy the PCML back next to the overlay. `OUTPUT(*NONE)` leaves out the compile listing, `REPLACE(*YES)` replaces a program of the same name, `DBGVIEW(*NONE)` keeps no debug view, and `TGTCCSID(*JOB)` compiles in the CCSID of your job:
 
 <!-- snippet: examples/call-a-program-on-ibm-i/steps.sh#compile -->
 ```sh
 # requires: ibmi
 scp TSTNESTED.rpgle '<your-user>@<your-system>:TSTNESTED.rpgle'
-ssh '<your-user>@<your-system>' "system \"CRTBNDRPG PGM(<your-library>/TSTNESTED) SRCSTMF('TSTNESTED.rpgle') PGMINFO(*PCML) INFOSTMF('TSTNESTED.pcml')\""
+ssh '<your-user>@<your-system>' "system \"CRTBNDRPG PGM(<your-library>/TSTNESTED) SRCSTMF('TSTNESTED.rpgle') PGMINFO(*PCML) INFOSTMF('TSTNESTED.pcml') OUTPUT(*NONE) REPLACE(*YES) DBGVIEW(*NONE) TGTCCSID(*JOB)\""
 scp '<your-user>@<your-system>:TSTNESTED.pcml' apis/TSTNESTED/TSTNESTED.pcml
 ```
+
+The build of this documentation does not run these three lines. It compiles the same source with the gateway's setup tool, which gives the compiler this same `CRTBNDRPG` command with `PGMINFO(*PCML)`, but writes the source and reads the PCML back through JT400 rather than with `scp` and `ssh`. Every other step of this page that needs IBM i is run on a real system.
 
 The [guide on PCML from the compiler](/docs/guides/get-pcml-from-the-compiler/) shows other ways to compile and what the file holds.
 

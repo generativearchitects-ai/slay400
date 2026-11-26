@@ -23,7 +23,7 @@ export SLAY400_GATEWAY_EXT="$HOME/.slay400-gateway/ext"
 # region: compile
 # requires: ibmi
 scp TSTNESTED.rpgle '<your-user>@<your-system>:TSTNESTED.rpgle'
-ssh '<your-user>@<your-system>' "system \"CRTBNDRPG PGM(<your-library>/TSTNESTED) SRCSTMF('TSTNESTED.rpgle') PGMINFO(*PCML) INFOSTMF('TSTNESTED.pcml')\""
+ssh '<your-user>@<your-system>' "system \"CRTBNDRPG PGM(<your-library>/TSTNESTED) SRCSTMF('TSTNESTED.rpgle') PGMINFO(*PCML) INFOSTMF('TSTNESTED.pcml') OUTPUT(*NONE) REPLACE(*YES) DBGVIEW(*NONE) TGTCCSID(*JOB)\""
 scp '<your-user>@<your-system>:TSTNESTED.pcml' apis/TSTNESTED/TSTNESTED.pcml
 # endregion
 
