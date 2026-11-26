@@ -1,0 +1,22 @@
+{
+  "tools": [
+    {
+      "name": "slay400-gateway",
+      "archive": { "path": "gateway-server/target/slay400-gateway-{version}.tar.gz" },
+      "releaseArchiveName": "slay400-gateway-{version}.tar.gz",
+      "installCommand": "curl -fsSL https://raw.githubusercontent.com/generativearchitects-ai/slay400/main/install.sh | sh",
+      "localScript": "install.sh",
+      "env": { "releasesUrl": "SLAY400_GATEWAY_RELEASES_URL", "releasesApi": "SLAY400_GATEWAY_RELEASES_API" },
+      "own": true
+    },
+    {
+      "name": "slay400",
+      "archive": { "env": "SLAY400_CORE_ARCHIVE" },
+      "releaseArchiveName": "slay400-{version}.tar.gz",
+      "installCommand": "curl -fsSL https://raw.githubusercontent.com/generativearchitects-ai/slay400-core/main/install.sh | sh",
+      "localScript": "scripts/docs/slay400-install.sh",
+      "env": { "releasesUrl": "SLAY400_RELEASES_URL", "releasesApi": "SLAY400_RELEASES_API" },
+      "own": false
+    }
+  ]
+}
