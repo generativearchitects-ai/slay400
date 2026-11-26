@@ -1,0 +1,4 @@
+slay400-gateway <version> installed in <workdir>/_home/.slay400-gateway/<version>
+Add this to your shell profile, or run it in your current shell:
+  export PATH="<workdir>/_home/.slay400-gateway/bin:$PATH"
+Then check with: slay400-gateway --version

@@ -9,3 +9,7 @@ its `.sha256`, check it, and set `SLAY400_CORE_ARCHIVE` to its path; the `build`
 Each example is a folder with `steps.sh` (the commands of the walkthrough, in named regions), `input/` (the files the
 reader starts with) and `expected/` (what each region prints). Regions marked `# requires: ibmi` need a real IBM i: they
 are not run in the build, and their recorded output comes from the manual `ibmi` workflow.
+
+`reference/` is not a walkthrough: it holds the complete example of the configuration file, which a test starts the gateway
+with, and the responses of the errors reference, which a test records from the gateway. The reference pages are generated
+from them by those tests.
