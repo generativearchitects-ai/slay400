@@ -44,7 +44,7 @@ slay400-gateway check --config config.yaml
 
 # region: start
 slay400-gateway run --config config.yaml > gateway.log 2>&1 &
-until curl -fs -o /dev/null http://127.0.0.1:9090/health/ready; do sleep 1; done
+until curl -fs --cacert tls/tls.crt -o /dev/null https://localhost:8443/health/ready; do sleep 1; done
 # endregion
 
 # region: call-https

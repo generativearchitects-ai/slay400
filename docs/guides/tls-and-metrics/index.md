@@ -88,10 +88,12 @@ slay400-gateway check: config.yaml can be served, 2 operations, 0 warnings
 
 A certificate that is expired, not yet valid, or not the key's stops the start (GWY022 to GWY024); one that expires within 30 days is a warning (GWY025).
 
+Start the gateway. This waits until the API listener answers over HTTPS:
+
 <!-- snippet: examples/tls-and-metrics/steps.sh#start -->
 ```sh
 slay400-gateway run --config config.yaml > gateway.log 2>&1 &
-until curl -fs -o /dev/null http://127.0.0.1:9090/health/ready; do sleep 1; done
+until curl -fs --cacert tls/tls.crt -o /dev/null https://localhost:8443/health/ready; do sleep 1; done
 ```
 
 Call an operation over HTTPS, trusting the test certificate:
