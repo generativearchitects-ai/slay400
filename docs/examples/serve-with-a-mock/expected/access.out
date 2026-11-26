@@ -1,13 +1,2 @@
-Nov 26, 2026 8:10:55 PM io.helidon.common.features.HelidonFeatures features
-INFO: Helidon SE 4.5.7 features: [Config, Encoding, Media, Registry, WebServer]
-Nov 26, 2026 8:10:55 PM io.helidon.webserver.ServerListener startIt
-INFO: [0x360e3217] http://127.0.0.1:8080 bound for socket '@default'
-Nov 26, 2026 8:10:55 PM io.helidon.webserver.ServerListener startIt
-INFO: [0x1c4407f4] http://127.0.0.1:9090 bound for socket 'management'
-There is no Helidon logging implementation on classpath, skipping log configuration.
-Nov 26, 2026 8:10:55 PM io.helidon.webserver.LoomServer startIt
-INFO: Started all channels in 25 milliseconds. 378 milliseconds since JVM startup. Java 27.0.1.0.3+1-2
-{"event":"started","address":"127.0.0.1","port":8080,"tenants":1,"environments":1,"operations":2,"ext":"/private<workdir>/_home/.slay400-gateway/<version>/lib/ext","jt400":"none"}
-{"time":"2026-11-26T19:10:56.239545Z","method":"GET","status":200,"durationMs":0,"correlationId":"e93e6e74-b7ac-48b9-a63b-f2fc96d0d6f8"}
-{"time":"2026-11-26T19:10:56.256497Z","tenant":"acme","environment":"test","operation":"ordstatus","method":"GET","route":"/orders/{orderNumber}/status","bundle":"shop","bundleVersion":"1.0.0","status":200,"durationMs":6,"correlationId":"9d26ad70-3be4-4000-a373-12dadf356997"}
-{"time":"2026-11-26T19:10:56.276133Z","tenant":"acme","environment":"test","operation":"itemqty","method":"POST","route":"/items/{sku}/quantity","bundle":"shop","bundleVersion":"1.0.0","status":200,"durationMs":2,"correlationId":"6875f906-ea74-45a2-956a-c762446a91c5"}
+"tenant":"acme","environment":"test","operation":"ordstatus","method":"GET","route":"/orders/{orderNumber}/status","bundle":"shop","bundleVersion":"1.0.0","status":200
+"tenant":"acme","environment":"test","operation":"itemqty","method":"POST","route":"/items/{sku}/quantity","bundle":"shop","bundleVersion":"1.0.0","status":200

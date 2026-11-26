@@ -1,5 +1,5 @@
 #!/bin/sh
-# Serve with a mock: the quickstart's bundle, served by the gateway with a mock backend, called with curl. No IBM i.
+# Serve with a mock: the quickstart's bundle, served by the gateway with its mock backend and called with curl. No IBM i.
 set -eu
 
 # region: install-slay400
@@ -7,9 +7,12 @@ curl -fsSL https://raw.githubusercontent.com/generativearchitects-ai/slay400-cor
 export PATH="$HOME/.slay400/bin:$PATH"
 # endregion
 
-# region: bundle
+# region: init
 slay400 init
-slay400 bundle --name shop --version 1.0.0 --out shop-1.0.0.rpgapi
+# endregion
+
+# region: bundle
+slay400 bundle --name shop --version 1.0.0 --out build/shop-1.0.0.rpgapi
 # endregion
 
 # region: install-gateway
@@ -25,10 +28,13 @@ slay400-gateway --version
 cat > config.yaml <<'YAML'
 tenants:
   acme:
-    bundles: [./shop-1.0.0.rpgapi]
+    bundles: [./build/shop-1.0.0.rpgapi]
     environments:
       test: { code: T0001, backend: mock }
 YAML
+# endregion
+
+# region: check
 slay400-gateway check --config config.yaml
 # endregion
 
@@ -42,12 +48,12 @@ curl -s http://127.0.0.1:8080/acme/test/orders/1001/status
 # endregion
 
 # region: call-item
-curl -s -X POST 'http://127.0.0.1:8080/acme/test/items/ABC12345/quantity?warehouse=W1' \
-  -H 'X-Channel: web' -H 'Content-Type: application/json' -d '{"quantity": 5}'
+curl -s -X POST 'http://127.0.0.1:8080/acme/test/items/ABC12345/quantity?warehouse=W01' \
+  -H 'X-Channel: WEB' -H 'Content-Type: application/json' -d '{"quantity": 5}'
 # endregion
 
 # region: access
-cat gateway.log
+grep -o '"tenant".*"status":[0-9]*' gateway.log
 # endregion
 
 # region: stop

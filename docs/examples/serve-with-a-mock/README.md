@@ -1,0 +1,1 @@
+The quickstart's `shop` bundle (the same inputs as the quickstart of slay400-core), served by the gateway with its mock backend and called with `curl`; no IBM i. Used by the page Serve with a mock (`/docs/get-started/serve-with-a-mock/`); its region `install-gateway` is the snippet "Install the gateway" of every page that installs it.
