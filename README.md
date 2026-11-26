@@ -58,12 +58,15 @@ slay400-gateway help
 
 `check` does everything a start does up to listening, with the same diagnostics, and opens no connection to an IBM i.
 `JAVA_OPTS` and `SLAY400_GATEWAY_OPTS` go to the JVM. Exit codes: 0, 1 when the start or the check finds an error, 2 for a
-usage error, 3 when no Java 21 or later is found, 143 after `SIGTERM`.
+usage error, 70 when no Java 21 or later is found (the value of the `slay400` launcher), 143 after `SIGTERM`.
 
 ### JTOpen for the ibmi backend
 
-The `ibmi` backend calls programs through JTOpen (JT400, IBM Public License 1.0), which is **not part of the distribution or
-the image**: the operator downloads it. A gateway with `mock` environments only does not need it.
+This distribution does not contain JT400 (JTOpen, the IBM Toolbox for Java). The `ibmi` backend needs it at run time.
+Operators obtain it themselves, under its own licence, the IBM Public License 1.0; the documentation explains how to download
+and add it.
+
+The image does not contain it either. A gateway with `mock` environments only does not need it.
 
 Download the verified version from Maven Central into `lib/ext/` of the distribution, and check its SHA-256:
 
