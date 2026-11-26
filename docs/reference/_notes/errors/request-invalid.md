@@ -1,0 +1,1 @@
+A parameter is missing, has the wrong type, is too long, or the body is not JSON. `errors` lists every problem at once, so that one correction fixes them all. Correct the request: the OpenAPI document of the bundle says what each operation takes.

@@ -23,7 +23,7 @@ class ConfigurationReferenceTest {
     static final Path DOCS = Path.of("..", "docs");
     static final Path PAGE = DOCS.resolve("reference/configuration/index.md");
     static final Path NOTES = DOCS.resolve("reference/_notes/configuration");
-    static final String EXAMPLE = "reference/_notes/configuration/config.yaml";
+    static final String EXAMPLE = "examples/reference/config.yaml";
     static final String COMMAND = "./mvnw -pl gateway-runtime test -Dtest=ConfigurationReferenceTest -Dslay400.docs.write=true";
 
     @Test

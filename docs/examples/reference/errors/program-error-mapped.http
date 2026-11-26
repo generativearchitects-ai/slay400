@@ -1,0 +1,5 @@
+HTTP/1.1 404 Not Found
+Content-Type: application/problem+json
+X-Correlation-Id: example-program-error-mapped
+
+{"type":"https://slay400.dev/problems/program-error","title":"The program reported an error","status":404,"detail":"Order not found","instance":"urn:slay400:request:example-program-error-mapped","code":"E404","tenant":"acme","environment":"test","correlationId":"example-program-error-mapped"}

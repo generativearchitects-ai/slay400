@@ -1,0 +1,1 @@
+The program ran and reported a business error through the convention of its `api.yaml` (`error`): `code` and `detail` are the program's error code and message. The default status of a program error is 422; the mapping can set another one.

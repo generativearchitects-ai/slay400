@@ -1,0 +1,1 @@
+The program reported a business error, and the error mapping of its `api.yaml` gives this error code its own status (`statusByCode`); here `E404` is answered with 404. The body is the one of a program error (422 below), with the status of the mapping.

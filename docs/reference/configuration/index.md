@@ -82,7 +82,7 @@ The environment name is the second segment of every address. An environment with
 
 Every key, with a `mock` and an `ibmi` environment. The gateway starts with it, as a test of this repository checks, once `bundles/` holds a bundle, `tls/` holds the certificate and its encrypted key, and the environment variables are set.
 
-<!-- snippet: reference/_notes/configuration/config.yaml -->
+<!-- snippet: examples/reference/config.yaml -->
 ```yaml
 # Every key of the gateway's configuration file. Started by ConfigurationExampleTest.
 server:

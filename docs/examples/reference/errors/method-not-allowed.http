@@ -1,0 +1,6 @@
+HTTP/1.1 405 Method Not Allowed
+Allow: GET
+Content-Type: application/problem+json
+X-Correlation-Id: example-method-not-allowed
+
+{"type":"https://slay400.dev/problems/method-not-allowed","title":"Method not allowed","status":405,"instance":"urn:slay400:request:example-method-not-allowed","tenant":"acme","environment":"test","correlationId":"example-method-not-allowed"}

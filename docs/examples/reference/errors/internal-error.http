@@ -1,0 +1,5 @@
+HTTP/1.1 500 Internal Server Error
+Content-Type: application/problem+json
+X-Correlation-Id: example-internal-error
+
+{"type":"https://slay400.dev/problems/internal-error","title":"Internal server error","status":500,"instance":"urn:slay400:request:example-internal-error","tenant":"acme","environment":"test","correlationId":"example-internal-error"}

@@ -25,7 +25,7 @@ import org.snakeyaml.engine.v2.api.LoadSettings;
  */
 class ConfigurationExampleTest {
 
-    static final Path EXAMPLE = Path.of("..", "docs", "reference", "_notes", "configuration", "config.yaml");
+    static final Path EXAMPLE = Path.of("..", "docs", "examples", "reference", "config.yaml");
 
     @TempDir
     Path dir;
