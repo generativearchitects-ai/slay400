@@ -1,0 +1,29 @@
+program: TSTNESTED
+pcml: TSTNESTED.pcml
+route: /orders/{key}
+method: GET
+version: 1.0.0
+summary: Returns an order with its lines, or a business error for the key FAIL (invented test program)
+
+parameters:
+  KEY: { name: key }
+  ORDER:
+    direction: response
+    name: order
+    fields:
+      TOTAL: { name: total, type: decimal }
+      LINES:
+        name: lines
+        fields:
+          SKU: { name: sku }
+          QTY: { name: quantity, type: integer }
+  ERRFLAG: { direction: internal }
+  ERRCODE: { direction: internal }
+  ERRTEXT: { direction: internal }
+
+error:
+  when: { field: ERRFLAG, equals: "KO" }
+  code: ERRCODE
+  message: ERRTEXT
+  httpStatus: 422
+  statusByCode: { TST0001: 409 }
