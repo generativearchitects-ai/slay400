@@ -25,7 +25,7 @@ This is the shape of the address of the operation `ORDSTATUS` of the examples, f
 GET /acme/test/orders/{orderNumber}/status
 ```
 
-The route, `/orders/{orderNumber}/status`, and the method come from `api.yaml`, as the OpenAPI document of the bundle publishes them. The API listener never serves `/metrics`. `health` cannot be the name of a tenant.
+The route, `/orders/{orderNumber}/status`, and the method come from `api.yaml`, as the OpenAPI document of the bundle publishes them. `health` cannot be the name of a tenant.
 
 ## The management listener
 

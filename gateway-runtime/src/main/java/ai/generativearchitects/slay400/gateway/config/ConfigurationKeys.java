@@ -82,7 +82,7 @@ public final class ConfigurationKeys {
             new Key("server.tls.keyPassword", "placeholder", "for an encrypted key", "", "a single ${NAME}", false,
                     "The environment variable that holds the password of an encrypted key."),
             new Key("management", "section", "no", "", "", false,
-                    "The management listener, plain HTTP: health checks and metrics, never an operation."),
+                    "The management listener, plain HTTP: the health checks, never an operation."),
             new Key("management.address", "text", "no", ManagementConfig.DEFAULT_ADDRESS, "no white space", false,
                     "The address the management listener listens on."),
             new Key("management.port", "whole number", "no", Integer.toString(ManagementConfig.DEFAULT_PORT),

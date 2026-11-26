@@ -17,7 +17,7 @@ A value can be, or contain, a `${NAME}` placeholder: the gateway puts in the val
 
 ## server
 
-The API listener serves the operations at `/<tenant>/<environment>/<route>` and the health checks `/health/live` and `/health/ready`, never `/metrics`. Earlier development builds named its address `server.host`; that key is now refused with GWY002 and a message that names `server.address`.
+The API listener serves the operations at `/<tenant>/<environment>/<route>` and the health checks `/health/live` and `/health/ready`. Earlier development builds named its address `server.host`; that key is now refused with GWY002 and a message that names `server.address`.
 
 With `server.tls`, a certificate or key that is missing, unreadable, not PEM, not matching each other, expired or not valid yet stops the start (GWY022 to GWY024); a certificate that expires within 30 days is a warning (GWY025). The two files are polled every `reload.intervalSeconds` and a new pair is used for new connections.
 
@@ -33,11 +33,11 @@ With `server.tls`, a certificate or key that is missing, unreadable, not PEM, no
 
 ## management
 
-The management listener speaks plain HTTP and serves `/health/live`, `/health/ready` and `/metrics`. Keep it on an address that only your monitoring reaches.
+The management listener speaks plain HTTP and serves the health checks `/health/live` and `/health/ready`. Keep it on an address that only your monitoring reaches.
 
 | Key | Type | Required | Default | Limits | A change takes effect | Meaning |
 |---|---|---|---|---|---|---|
-| `management` | section | no |  |  | at a restart | The management listener, plain HTTP: health checks and metrics, never an operation. |
+| `management` | section | no |  |  | at a restart | The management listener, plain HTTP: the health checks, never an operation. |
 | `management.address` | text | no | `127.0.0.1` | no white space | at a restart | The address the management listener listens on. |
 | `management.port` | whole number | no | `9090` | 0 to 65535; 0 turns the listener off | at a restart | The port of the management listener. |
 

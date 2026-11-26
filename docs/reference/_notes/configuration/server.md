@@ -1,3 +1,3 @@
-The API listener serves the operations at `/<tenant>/<environment>/<route>` and the health checks `/health/live` and `/health/ready`, never `/metrics`. Earlier development builds named its address `server.host`; that key is now refused with GWY002 and a message that names `server.address`.
+The API listener serves the operations at `/<tenant>/<environment>/<route>` and the health checks `/health/live` and `/health/ready`. Earlier development builds named its address `server.host`; that key is now refused with GWY002 and a message that names `server.address`.
 
 With `server.tls`, a certificate or key that is missing, unreadable, not PEM, not matching each other, expired or not valid yet stops the start (GWY022 to GWY024); a certificate that expires within 30 days is a warning (GWY025). The two files are polled every `reload.intervalSeconds` and a new pair is used for new connections.
