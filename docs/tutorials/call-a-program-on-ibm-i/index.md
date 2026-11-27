@@ -347,7 +347,17 @@ This starts the gateway with a wrong password, in the foreground. It signs on on
 IBMI_PASSWORD='not-the-password' slay400-gateway run --config config.yaml
 ```
 
-It reports GWY018, "The backend ibmi of the environment prod cannot be opened", with the reason, and exits with 1. Each refused sign-on counts towards the limit of your system for that user; a correct sign-on resets the count.
+It prints:
+
+<!-- snippet: examples/call-a-program-on-ibm-i/expected/sign-on-refused.out -->
+```text
+Nov 27, 2026 10:13:03 AM ai.generativearchitects.slay400.gateway.ibmi.ConnectionPool refused
+SEVERE: The IBM i of tenant acme, environment prod refused the sign-on. The gateway does not sign on again until it restarts, since repeated refused sign-ons can disable the user profile
+config.yaml:5:7: error GWY018: The backend ibmi of the environment prod cannot be opened: the sign-on was refused (return code 8)
+1 error, 0 warnings, 0 notes
+```
+
+The first two lines are the gateway's warning, with the time it was written: it does not sign on again until it restarts. Then comes GWY018, with the reason, and the count; the gateway exits with 1. Each refused sign-on counts towards the limit of your system for that user; a correct sign-on resets the count.
 
 ## Clean up
 
