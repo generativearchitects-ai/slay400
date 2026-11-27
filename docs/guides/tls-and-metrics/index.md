@@ -158,7 +158,7 @@ It prints:
 404
 ```
 
-`/health/live` answers once the gateway runs; `/health/ready` once it serves its bundles. Metrics on the management listener are planned for a later version.
+`/health/live` answers 200 while the gateway runs. `/health/ready` answers 200 only while the API listener accepts connections; before that, and from the moment a stop begins, it answers 503, so a probe on the management port never sends traffic too early or too late. Metrics on the management listener are planned for a later version.
 
 <!-- snippet: examples/tls-and-metrics/steps.sh#stop -->
 ```sh

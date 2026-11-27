@@ -16,8 +16,8 @@ Every address the gateway serves, and how it matches a request with an operation
 | Address | What |
 |---|---|
 | `/<tenant>/<environment>/<route>` | An operation: the tenant and the environment of the configuration, then the route of the operation's `api.yaml` |
-| `/health/live` | `{"status":"ok"}` once the gateway runs |
-| `/health/ready` | `{"status":"ok"}` once it serves its bundles |
+| `/health/live` | `{"status":"ok"}` while the gateway runs, from the moment it listens until it exits |
+| `/health/ready` | `{"status":"ok"}` while the API listener accepts connections and serves its bundles; before that, and from the moment a stop begins, 503 with the problem body of `service-unavailable` |
 
 This is the shape of the address of the operation `ORDSTATUS` of the examples, for the tenant `acme` and the environment `test`; it is a shape, not a command:
 
@@ -29,7 +29,7 @@ The route, `/orders/{orderNumber}/status`, and the method come from `api.yaml`, 
 
 ## The management listener
 
-Plain HTTP, `127.0.0.1:9090` by default (`management`). It serves `/health/live` and `/health/ready`, and never an operation: any other address is 404. `management.port: 0` turns it off.
+Plain HTTP, `127.0.0.1:9090` by default (`management`). It serves `/health/live` and `/health/ready`, with the same meaning as on the API listener, and never an operation: any other address is 404. `management.port: 0` turns it off.
 
 ## How a route is matched
 

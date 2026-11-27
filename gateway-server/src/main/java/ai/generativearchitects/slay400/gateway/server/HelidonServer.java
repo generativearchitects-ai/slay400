@@ -84,7 +84,19 @@ public final class HelidonServer {
         }
         WebServer server = builder.build().start();
         started.tls().ifPresent(watcher -> watcher.onChange(material -> server.reloadTls(tls(material))));
+        // start() returns once every listener has started: the API listener now accepts connections, so /health/ready may say so
+        // (kickoff 11). Before this line it answers 503, also on a management listener that was up first.
+        gateway.ready(true);
         return server;
+    }
+
+    /**
+     * Stops: {@code /health/ready} answers 503 from the first moment, so that a probe stops sending traffic, then the listeners stop
+     * taking connections and the requests in flight get {@link #SHUTDOWN_GRACE} to finish (kickoff 11).
+     */
+    public static void stop(WebServer server, Gateway gateway) {
+        gateway.ready(false);
+        server.stop();
     }
 
     /** The TLS of the API listener: this certificate and key, TLS 1.3 and 1.2 only, the JDK's cipher suites, no client certificate. */

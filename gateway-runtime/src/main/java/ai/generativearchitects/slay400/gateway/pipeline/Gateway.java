@@ -59,6 +59,7 @@ public final class Gateway {
     private static final byte[] HEALTH_BODY = "{\"status\":\"ok\"}".getBytes(StandardCharsets.UTF_8);
 
     private volatile ServedSet current;
+    private volatile boolean ready;
     private final ReadLimits limits;
     private final Consumer<String> accessLog;
 
@@ -92,6 +93,20 @@ public final class Gateway {
     /** Serves another set from now on: requests that arrive after this call are served by it. */
     public void serve(ServedSet next) {
         current = Objects.requireNonNull(next, "next");
+    }
+
+    /**
+     * Whether {@code /health/ready} answers 200 (kickoff 11). The server sets it once the API listener accepts connections, and
+     * clears it when a stop begins; until then, and from then on, the answer is 503. A gateway always serves a set of bundles, so
+     * that is not a condition of its own. A refused reload does not change it.
+     */
+    public void ready(boolean ready) {
+        this.ready = ready;
+    }
+
+    /** Whether {@code /health/ready} answers 200 now. */
+    public boolean ready() {
+        return ready;
     }
 
     /** The largest request body, in bytes; a reader of the body reads at most this plus one. */
@@ -260,6 +275,10 @@ public final class Gateway {
         if (!request.method().equals("GET")) {
             return new RuntimeResponse(405, common(correlationId, Map.of("Allow", "GET")), Optional.of(ProblemDetails.CONTENT_TYPE),
                     ProblemDetails.of(ProblemKind.METHOD_NOT_ALLOWED, "").withContext("", "", correlationId).toJson());
+        }
+        if (request.rawPath().equals("/health/ready") && !ready) {
+            return new RuntimeResponse(503, common(correlationId, Map.of()), Optional.of(ProblemDetails.CONTENT_TYPE),
+                    ProblemDetails.of(ProblemKind.UNAVAILABLE, "").withContext("", "", correlationId).toJson());
         }
         return new RuntimeResponse(200, common(correlationId, Map.of()), Optional.of(HttpBinding.JSON), HEALTH_BODY);
     }

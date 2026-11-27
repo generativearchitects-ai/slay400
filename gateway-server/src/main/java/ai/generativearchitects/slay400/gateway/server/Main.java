@@ -157,7 +157,7 @@ public final class Main {
         // flight; then the poll thread stops and the backends close.
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println("{\"event\":\"stopping\"}");
-            server.stop();
+            HelidonServer.stop(server, started.gateway());
             started.close();
             System.out.println("{\"event\":\"stopped\"}");
         }, "slay400-shutdown"));

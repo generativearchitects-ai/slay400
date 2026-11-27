@@ -380,12 +380,33 @@ class PipelineTest {
 
     @Test
     void healthAnswers200WithABodyThatTellsNothing() {
+        gateway.ready(true);
         for (String path : List.of("/health/live", "/health/ready")) {
             RuntimeResponse response = gateway.handle(get(path));
             assertThat(response.status()).isEqualTo(200);
             assertThat(response.contentType()).contains("application/json");
             assertThat(text(response)).isEqualTo("{\"status\":\"ok\"}");
         }
+    }
+
+    @Test
+    void readyIs503UntilTheServerSaysTheGatewayIsReadyAndAgainWhenAStopBegins() {
+        assertProblem(gateway.handle(get("/health/ready")), 503, "service-unavailable");
+        assertThat(gateway.handle(get("/health/live")).status()).isEqualTo(200);
+        gateway.ready(true);
+        assertThat(gateway.handle(get("/health/ready")).status()).isEqualTo(200);
+        gateway.ready(false);
+        RuntimeResponse stopping = gateway.handle(get("/health/ready"));
+        assertProblem(stopping, 503, "service-unavailable");
+        assertThat(stopping.headers()).containsKey("X-Correlation-Id");
+        assertThat(gateway.handle(get("/health/live")).status()).isEqualTo(200);
+    }
+
+    @Test
+    void aSwitchToANewSetDoesNotChangeReadiness() {
+        gateway.ready(true);
+        gateway.serve(gateway.served());
+        assertThat(gateway.handle(get("/health/ready")).status()).isEqualTo(200);
     }
 
     @Test
