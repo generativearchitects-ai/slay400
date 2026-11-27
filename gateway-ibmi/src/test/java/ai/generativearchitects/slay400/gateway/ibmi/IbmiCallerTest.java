@@ -122,8 +122,8 @@ class IbmiCallerTest {
         assertThat(fake.opened).hasValue(0);
         try (LogCapture log = new LogCapture("slay400.gateway.ibmi")) {
             assertThat(caller.call(CONTEXT, operations.get("tstwait"), waitInput())).isEqualTo(new CallOutcome.Unavailable());
-            assertThat(log.text()).contains("No connection to the IBM i of tenant acme, environment test: the host cannot be reached (ConnectException)")
-                    .contains("correlation id corr-1");
+            assertThat(log.text()).contains("No connection to the IBM i: the host cannot be reached (ConnectException)")
+                    .contains("\"tenant\":\"acme\",\"environment\":\"test\"").contains("\"correlationId\":\"corr-1\"");
         }
         // The next call tries again: an unreachable host is not a refused sign-on.
         fake.openFailure = null;
@@ -251,7 +251,8 @@ class IbmiCallerTest {
         long started = System.nanoTime();
         try (LogCapture log = new LogCapture("slay400.gateway.ibmi")) {
             assertThat(caller.call(CONTEXT, operations.get("tstwait"), waitInput())).isEqualTo(new CallOutcome.TimedOut());
-            assertThat(log.text()).contains("did not answer within 150 ms; its connection is closed, correlation id corr-1");
+            assertThat(log.text()).contains("did not answer within 150 ms; its connection is closed").contains("\"operation\":\"tstwait\"")
+                    .contains("\"correlationId\":\"corr-1\"");
         }
         long millis = (System.nanoTime() - started) / 1_000_000;
         assertThat(millis).isGreaterThanOrEqualTo(140).isLessThan(5000);

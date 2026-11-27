@@ -1,5 +1,7 @@
 package ai.generativearchitects.slay400.gateway.ibmi;
 
+import ai.generativearchitects.slay400.gateway.log.LogFields;
+
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -31,7 +33,7 @@ final class ConnectionPool implements AutoCloseable {
 
     private final IbmiConnector connector;
     private final Duration wait;
-    private final String where;
+    private final LogFields where;
     private final Semaphore permits;
     private final Deque<IbmiConnection> idle = new ArrayDeque<>();
     private volatile boolean signOnRefused;
@@ -43,7 +45,7 @@ final class ConnectionPool implements AutoCloseable {
      * @param wait           how long a call waits for a connection when all are in use
      * @param where          tenant and environment, for the log
      */
-    ConnectionPool(IbmiConnector connector, int maxConnections, Duration wait, String where) {
+    ConnectionPool(IbmiConnector connector, int maxConnections, Duration wait, LogFields where) {
         this.connector = Objects.requireNonNull(connector, "connector");
         this.wait = Objects.requireNonNull(wait, "wait");
         this.where = Objects.requireNonNull(where, "where");
@@ -97,7 +99,7 @@ final class ConnectionPool implements AutoCloseable {
                     return connection;
                 }
                 connection.close();
-                LOG.log(System.Logger.Level.INFO, "A connection to the IBM i of " + where + " no longer worked and is replaced");
+                LOG.log(System.Logger.Level.INFO, "A connection to the IBM i no longer worked and is replaced", where);
             }
             return open();
         } catch (IbmiFailure failure) {
@@ -119,7 +121,7 @@ final class ConnectionPool implements AutoCloseable {
             if (failure.kind() == IbmiFailure.Kind.SIGN_ON_REFUSED) {
                 refused();
             } else {
-                LOG.log(System.Logger.Level.WARNING, "No connection to the IBM i of " + where + ": " + describe(failure));
+                LOG.log(System.Logger.Level.WARNING, "No connection to the IBM i: " + describe(failure), where);
             }
             throw failure;
         }
@@ -128,8 +130,8 @@ final class ConnectionPool implements AutoCloseable {
     private synchronized void refused() {
         if (!signOnRefused) {
             signOnRefused = true;
-            LOG.log(System.Logger.Level.ERROR, "The IBM i of " + where + " refused the sign-on. The gateway does not sign on again until it restarts, "
-                    + "since repeated refused sign-ons can disable the user profile");
+            LOG.log(System.Logger.Level.ERROR, "The IBM i refused the sign-on. The gateway does not sign on again until it restarts, "
+                    + "since repeated refused sign-ons can disable the user profile", where);
         }
     }
 

@@ -207,7 +207,8 @@ class TlsWatcherTest {
             watcher.poll();
             watcher.poll();
             assertThat(taken).hasSize(1);
-            assertThat(messages(log, Level.WARNING)).singleElement().asString().startsWith("GWY025 The certificate in tls.crt expires on ");
+            assertThat(messages(log, Level.WARNING)).singleElement().asString().startsWith("The certificate in tls.crt expires on ");
+            assertThat(log.text()).contains("\"code\":\"GWY025\"");
         }
     }
 

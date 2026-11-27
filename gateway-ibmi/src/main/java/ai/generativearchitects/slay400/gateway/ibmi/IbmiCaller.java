@@ -1,5 +1,7 @@
 package ai.generativearchitects.slay400.gateway.ibmi;
 
+import ai.generativearchitects.slay400.gateway.log.LogFields;
+
 import ai.generativearchitects.slay400.gateway.call.CallContext;
 import ai.generativearchitects.slay400.gateway.call.CallOutcome;
 import ai.generativearchitects.slay400.gateway.call.ProgramCaller;
@@ -42,9 +44,9 @@ final class IbmiCaller implements ProgramCaller {
     private final ConnectionPool pool;
     private final Duration timeout;
     private final Redactor redactor;
-    private final String where;
+    private final LogFields where;
 
-    IbmiCaller(Map<ApiOperation, ProgramLayout> layouts, ConnectionPool pool, Duration timeout, Redactor redactor, String where) {
+    IbmiCaller(Map<ApiOperation, ProgramLayout> layouts, ConnectionPool pool, Duration timeout, Redactor redactor, LogFields where) {
         this.layouts = new IdentityHashMap<>(layouts);
         this.pool = Objects.requireNonNull(pool, "pool");
         this.timeout = Objects.requireNonNull(timeout, "timeout");
@@ -62,8 +64,8 @@ final class IbmiCaller implements ProgramCaller {
         try {
             connection = pool.borrow();
         } catch (ConnectionPool.NoConnection e) {
-            LOG.log(System.Logger.Level.WARNING, "No connection for " + operation.program().name() + " of " + where + ", correlation id " + context.correlationId() + ": "
-                    + e.getMessage());
+            LOG.log(System.Logger.Level.WARNING, "No connection for " + operation.program().name() + ": " + e.getMessage(),
+                    where.operation(operation.id()).correlationId(context.correlationId()));
             return new CallOutcome.Unavailable();
         }
         List<ParameterBytes> parameters;
@@ -81,8 +83,8 @@ final class IbmiCaller implements ProgramCaller {
         } catch (TimeoutException e) {
             // The connection may be in the middle of the call: it cannot be used again. Closing it ends the wait of the call.
             pool.discard(connection);
-            LOG.log(System.Logger.Level.WARNING, "The call of " + operation.program().name() + " of " + where + " did not answer within " + timeout.toMillis()
-                    + " ms; its connection is closed, correlation id " + context.correlationId());
+            LOG.log(System.Logger.Level.WARNING, "The call of " + operation.program().name() + " did not answer within " + timeout.toMillis()
+                    + " ms; its connection is closed", where.operation(operation.id()).correlationId(context.correlationId()));
             return new CallOutcome.TimedOut();
         } catch (ExecutionException e) {
             pool.discard(connection);

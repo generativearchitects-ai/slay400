@@ -1,5 +1,8 @@
 package ai.generativearchitects.slay400.gateway.ibmi;
 
+import ai.generativearchitects.slay400.gateway.log.LogFields;
+import ai.generativearchitects.slay400.gateway.log.LogRedaction;
+
 import ai.generativearchitects.slay400.gateway.call.BackendProvider;
 import ai.generativearchitects.slay400.gateway.call.BackendStart;
 import ai.generativearchitects.slay400.gateway.call.OpenBackend;
@@ -61,17 +64,21 @@ public final class IbmiBackend implements BackendProvider {
     @Override
     public BackendStart start(String tenant, EnvironmentConfig environment, List<ApiOperation> operations, boolean connectCheck) {
         IbmiSettings settings = environment.ibmi().orElseThrow(() -> new IllegalArgumentException("not an ibmi environment"));
-        String where = "tenant " + tenant + ", environment " + environment.name();
+        LogFields where = LogFields.of(tenant, environment.name());
+        Redactor redactor = new Redactor(settings);
+        // From now on no log record, the gateway's or Helidon's, can carry the host, user or libraries of this environment.
+        LogRedaction.Registration redaction = LogRedaction.register(redactor::apply);
         ConnectionPool pool = new ConnectionPool(connectors.apply(settings), settings.maxConnections(), poolWait, where);
         if (connectCheck) {
             try {
                 pool.prime();
             } catch (IbmiFailure failure) {
                 pool.close();
+                redaction.close();
                 return BackendStart.failed(List.of(ConnectionPool.describe(failure)));
             }
         }
-        return BackendStart.opened(new Environment(pool, timeout.apply(settings), new Redactor(settings), where));
+        return BackendStart.opened(new Environment(pool, timeout.apply(settings), redactor, where, redaction));
     }
 
     /**
@@ -82,13 +89,15 @@ public final class IbmiBackend implements BackendProvider {
         private final ConnectionPool pool;
         private final Duration timeout;
         private final Redactor redactor;
-        private final String where;
+        private final LogFields where;
+        private final LogRedaction.Registration redaction;
 
-        Environment(ConnectionPool pool, Duration timeout, Redactor redactor, String where) {
+        Environment(ConnectionPool pool, Duration timeout, Redactor redactor, LogFields where, LogRedaction.Registration redaction) {
             this.pool = pool;
             this.timeout = timeout;
             this.redactor = redactor;
             this.where = where;
+            this.redaction = redaction;
         }
 
         /** The pool of the environment, the same object for every set. */
@@ -108,6 +117,7 @@ public final class IbmiBackend implements BackendProvider {
         @Override
         public void close() {
             pool.close();
+            redaction.close();
         }
     }
 }

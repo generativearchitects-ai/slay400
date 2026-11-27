@@ -84,6 +84,12 @@
         <artifactId>helidon-webserver</artifactId>
         <version>${helidon.version}</version>
       </dependency>
+      <!-- Already in the distribution through helidon-webserver; named because the gateway implements its LoggingProvider (kickoff 11). -->
+      <dependency>
+        <groupId>io.helidon.logging</groupId>
+        <artifactId>helidon-logging-common</artifactId>
+        <version>${helidon.version}</version>
+      </dependency>
       <dependency>
         <groupId>net.sf.jt400</groupId>
         <artifactId>jt400</artifactId>

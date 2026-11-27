@@ -1,5 +1,7 @@
 package ai.generativearchitects.slay400.gateway.load;
 
+import ai.generativearchitects.slay400.gateway.log.LogFields;
+
 import ai.generativearchitects.slay400.gateway.config.TlsSettings;
 import ai.generativearchitects.slay400.gateway.tls.TlsMaterial;
 import ai.generativearchitects.slay400.pcml.diagnostics.Diagnostic;
@@ -135,7 +137,7 @@ public final class TlsWatcher {
                 + next.notAfter());
         for (Diagnostic warning : result.diagnostics()) {
             if (warning.severity() == Severity.WARNING) {
-                LOG.log(System.Logger.Level.WARNING, warning.code() + " " + warning.message());
+                LOG.log(System.Logger.Level.WARNING, warning.message(), LogFields.none().code(warning.code()));
             }
         }
     }

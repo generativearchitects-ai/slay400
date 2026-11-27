@@ -86,7 +86,8 @@ class ResponseLimitTest {
             assertThat(new String(response.body(), StandardCharsets.UTF_8)).doesNotContain("X\"");
             assertThat(log.lines()).singleElement().satisfies(line -> {
                 assertThat(line.level()).isEqualTo(Level.WARNING);
-                assertThat(line.message()).startsWith("The response of the operation limits has more values than the limit of 3 of its bundle, tenant acme, environment test");
+                assertThat(line.message()).isEqualTo("The response has more values than the limit of 3 of its bundle");
+                assertThat(line.json()).contains("\"tenant\":\"acme\",\"environment\":\"test\",\"operation\":\"limits\"").contains("\"code\":\"VAL104\"");
             });
         }
         assertThat(access.get(0)).contains("\"status\":502").contains("VAL104");

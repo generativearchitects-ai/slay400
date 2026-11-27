@@ -32,6 +32,10 @@
       <groupId>io.helidon.webserver</groupId>
       <artifactId>helidon-webserver</artifactId>
     </dependency>
+    <dependency>
+      <groupId>io.helidon.logging</groupId>
+      <artifactId>helidon-logging-common</artifactId>
+    </dependency>
 
     <dependency>
       <groupId>ai.generativearchitects.slay400</groupId>

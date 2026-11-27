@@ -1,6 +1,6 @@
 ---
 title: Logs reference
-description: The access line of every request and the events of the gateway, field by field.
+description: The access line of every request, the events and the log records of the gateway, field by field.
 section: reference
 slug: logs
 order: 60
@@ -9,7 +9,7 @@ appliesTo: "0.1"
 
 # Logs reference
 
-What the gateway writes while it runs. On standard output: one JSON line per request (the access line) and one JSON line per event. On standard error: the diagnostics of a start or a check, and warnings, as text.
+What the gateway writes while it runs: every line, on either stream, is one JSON object. On standard output, one line per request (the access line) and one line per event. On standard error, one line per log record: the gateway's warnings and errors, and what Helidon, the web server inside the gateway, logs. What `check` and a start that fails print for a person, the diagnostics and their count, is text on standard error, and comes before the gateway serves anything.
 
 ## The access line
 
@@ -55,6 +55,32 @@ The bundles now served, with their versions; how many operations were added, rem
 
 `stopping` and `stopped`, on `SIGTERM`: before the listeners stop taking connections, and after the requests in flight finished and the backends closed. They have no other field.
 
-## Diagnostics and warnings
+## Log records
 
-A start or a check that finds a problem writes one line per diagnostic to standard error: the file, line and column, the severity, the code and the message, then a count. See the [configuration reference](/docs/reference/configuration/) for the codes of the configuration file. Warnings while running, such as a set of bundles that cannot be loaded, are written to standard error as well, as text.
+One line per record, on standard error, the gateway's and Helidon's alike. This is the shape of a warning of the gateway, about a certificate near its end; it is not a command:
+
+```text
+{"time":"2026-11-27T10:13:03.123Z","level":"warning","logger":"slay400.gateway","message":"The certificate in tls.crt expires on 2026-12-07, in 9 days","code":"GWY025"}
+```
+
+| Field | What | When |
+|---|---|---|
+| `time` | When the record was written, in UTC (ISO 8601) | always |
+| `level` | `error`, `warning` or `info` | always |
+| `logger` | Who wrote it: `slay400.gateway` and `slay400.gateway.ibmi` for the gateway, `io.helidon.…` for Helidon | always |
+| `message` | What happened, in words | always |
+| `tenant`, `environment` | The tenant and the environment the record is about | when the gateway knows them |
+| `operation` | The id of the operation | when the gateway knows it |
+| `correlationId` | As in the header `X-Correlation-Id` and the access line, so that one value finds the request and its records | for a record about a request |
+| `code` | The diagnostic code, such as GWY025 or VAL104 | when there is one |
+| `exception` | The class and the message of an exception | with an exception |
+| `stack` | Its stack trace, causes included, as one string | with an exception |
+| `truncated` | `true` when the message, the exception or the stack was cut at its bound (4096, 1024 and 16384 characters) | when one was cut |
+
+A record never breaks its line: line ends and other control characters inside a message or a stack are escaped. No record holds a value of a parameter, a body, a credential or key material. A text that came from the IBM i, such as the message of a failed call, has the host, user and libraries of its environment replaced by `<host>`, `<user>` and `<library>` before it is written.
+
+The gateway logs at `info` and above. Watch `error` and `warning`; `info` records tell what the gateway and Helidon did, such as the listeners they started.
+
+## Diagnostics of a start or a check
+
+A start or a check that finds a problem writes, to standard error and as text for a person, one line per diagnostic: the file, line and column, the severity, the code and the message, then a count. See the [configuration reference](/docs/reference/configuration/) for the codes of the configuration file. A start that fails this way serves nothing and exits with 1.

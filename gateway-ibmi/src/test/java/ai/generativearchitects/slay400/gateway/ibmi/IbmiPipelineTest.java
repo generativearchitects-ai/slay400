@@ -125,7 +125,7 @@ class IbmiPipelineTest {
         try (LogCapture gateway = new LogCapture("slay400.gateway"); LogCapture ibmi = new LogCapture("slay400.gateway.ibmi")) {
             started.gateway().handle(get("/acme/test/orders/MK9Z"));
             String all = gateway.text() + ibmi.text();
-            assertThat(all).contains("tenant acme, environment test").contains("CPF9898 Stopped in <library> for <user>").doesNotContain("MK9Z")
+            assertThat(all).contains("\"tenant\":\"acme\",\"environment\":\"test\"").contains("CPF9898 Stopped in <library> for <user>").doesNotContain("MK9Z")
                     .doesNotContain("USERMARK").doesNotContain("usermark").doesNotContain("LIBMARK").doesNotContain("PW-MARKER").doesNotContain("host-marker");
         }
         assertThat(String.join("\n", access)).doesNotContain("MK9Z").doesNotContain("CPF9898");

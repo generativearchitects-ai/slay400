@@ -2,6 +2,7 @@ package ai.generativearchitects.slay400.gateway.pipeline;
 
 import ai.generativearchitects.slay400.gateway.call.CallContext;
 import ai.generativearchitects.slay400.gateway.call.CallOutcome;
+import ai.generativearchitects.slay400.gateway.log.LogFields;
 import ai.generativearchitects.slay400.http.HttpBinding;
 import ai.generativearchitects.slay400.http.ProblemDetails;
 import ai.generativearchitects.slay400.http.ProblemKind;
@@ -59,6 +60,7 @@ public final class Gateway {
     private static final byte[] HEALTH_BODY = "{\"status\":\"ok\"}".getBytes(StandardCharsets.UTF_8);
 
     private volatile ServedSet current;
+    private volatile boolean ready;
     private final ReadLimits limits;
     private final Consumer<String> accessLog;
 
@@ -94,6 +96,20 @@ public final class Gateway {
         current = Objects.requireNonNull(next, "next");
     }
 
+    /**
+     * Whether {@code /health/ready} answers 200 (kickoff 11). The server sets it once the API listener accepts connections, and
+     * clears it when a stop begins; until then, and from then on, the answer is 503. A gateway always serves a set of bundles, so
+     * that is not a condition of its own. A refused reload does not change it.
+     */
+    public void ready(boolean ready) {
+        this.ready = ready;
+    }
+
+    /** Whether {@code /health/ready} answers 200 now. */
+    public boolean ready() {
+        return ready;
+    }
+
     /** The largest request body, in bytes; a reader of the body reads at most this plus one. */
     public int maxBodyBytes() {
         return limits.maxBodyBytes();
@@ -115,12 +131,12 @@ public final class Gateway {
             response = process(current, request, correlationId, trace);
         } catch (ClientGoneException e) {
             // Nobody receives this answer; the access line still records the request.
-            LOG.log(System.Logger.Level.INFO, "The client went away while its body was read, correlation id " + correlationId);
+            LOG.log(System.Logger.Level.INFO, "The client went away while its body was read", fields(trace, correlationId));
             trace.problems.clear();
             trace.problems.add(CLIENT_GONE);
             response = problem(ProblemDetails.of(ProblemKind.REQUEST_INVALID, ""), trace, correlationId, Map.of());
         } catch (RuntimeException | StackOverflowError | OutOfMemoryError e) {
-            LOG.log(System.Logger.Level.ERROR, "Unexpected error, correlation id " + correlationId, e);
+            LOG.log(System.Logger.Level.ERROR, "Unexpected error", fields(trace, correlationId).thrown(e));
             trace.problems.clear();
             trace.problems.add(ProblemKind.INTERNAL_ERROR.type().substring(ProblemKind.INTERNAL_ERROR.type().lastIndexOf('/') + 1));
             response = problem(ProblemDetails.of(ProblemKind.INTERNAL_ERROR, ""), trace, correlationId, Map.of());
@@ -158,6 +174,11 @@ public final class Gateway {
         } catch (RuntimeException e) {
             LOG.log(System.Logger.Level.ERROR, "The access log failed", e);
         }
+    }
+
+    /** The fields of a log record about this request: what the pipeline knows of it so far. */
+    private static LogFields fields(Trace trace, String correlationId) {
+        return LogFields.request(correlationId).tenant(trace.tenant).environment(trace.environment).operation(trace.operationId);
     }
 
     private static final class Trace {
@@ -228,8 +249,7 @@ public final class Gateway {
                 return kind(ProblemKind.TIMEOUT, trace, correlationId);
             }
             case CallOutcome.Failed failed -> {
-                LOG.log(System.Logger.Level.WARNING, "Program call failed, tenant " + tenant.name() + ", environment " + environment.name() + ", correlation id "
-                        + correlationId + ": " + failed.reason());
+                LOG.log(System.Logger.Level.WARNING, "Program call failed: " + failed.reason(), fields(trace, correlationId));
                 return kind(ProblemKind.PROGRAM_CALL_FAILED, trace, correlationId);
             }
             case CallOutcome.Returned returned -> {
@@ -237,9 +257,8 @@ public final class Gateway {
                 if (!decoded.problems().isEmpty()) {
                     decoded.problems().forEach(p -> trace.problems.add(p.code()));
                     if (decoded.problems().stream().anyMatch(p -> p.code().equals(RESPONSE_LIMIT))) {
-                        LOG.log(System.Logger.Level.WARNING, "The response of the operation " + found.operation().id() + " has more values than the limit of "
-                                + compiled.maxResponseValues() + " of its bundle, tenant " + tenant.name() + ", environment " + environment.name() + ", correlation id "
-                                + correlationId);
+                        LOG.log(System.Logger.Level.WARNING, "The response has more values than the limit of " + compiled.maxResponseValues() + " of its bundle",
+                                fields(trace, correlationId).code(RESPONSE_LIMIT));
                     }
                     return problem(ProblemDetails.of(ProblemKind.PROGRAM_CALL_FAILED, "The program returned data that the API cannot represent."),
                             trace, correlationId, Map.of());
@@ -260,6 +279,10 @@ public final class Gateway {
         if (!request.method().equals("GET")) {
             return new RuntimeResponse(405, common(correlationId, Map.of("Allow", "GET")), Optional.of(ProblemDetails.CONTENT_TYPE),
                     ProblemDetails.of(ProblemKind.METHOD_NOT_ALLOWED, "").withContext("", "", correlationId).toJson());
+        }
+        if (request.rawPath().equals("/health/ready") && !ready) {
+            return new RuntimeResponse(503, common(correlationId, Map.of()), Optional.of(ProblemDetails.CONTENT_TYPE),
+                    ProblemDetails.of(ProblemKind.UNAVAILABLE, "").withContext("", "", correlationId).toJson());
         }
         return new RuntimeResponse(200, common(correlationId, Map.of()), Optional.of(HttpBinding.JSON), HEALTH_BODY);
     }

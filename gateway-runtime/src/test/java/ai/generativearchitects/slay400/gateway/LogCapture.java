@@ -1,5 +1,8 @@
 package ai.generativearchitects.slay400.gateway;
 
+import ai.generativearchitects.slay400.gateway.log.JsonLogFormatter;
+import ai.generativearchitects.slay400.gateway.log.LogFields;
+
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Handler;
@@ -13,9 +16,14 @@ import java.util.logging.Logger;
  */
 public final class LogCapture implements AutoCloseable {
 
-    /** What was logged: level, message, and the class of the exception, if any. */
-    public record Line(Level level, String message, String thrown) {
+    /**
+     * What was logged: level, message, the class of the exception, if any (also one that travels in {@link LogFields}), and the
+     * record as the gateway's JSON formatter writes it, fields included.
+     */
+    public record Line(Level level, String message, String thrown, String json) {
     }
+
+    private static final JsonLogFormatter FORMATTER = new JsonLogFormatter();
 
     private final Logger logger;
     private final Level previous;
@@ -23,7 +31,15 @@ public final class LogCapture implements AutoCloseable {
     private final Handler handler = new Handler() {
         @Override
         public void publish(LogRecord record) {
-            lines.add(new Line(record.getLevel(), record.getMessage(), record.getThrown() == null ? null : record.getThrown().getClass().getName()));
+            Throwable thrown = record.getThrown();
+            if (thrown == null && record.getParameters() != null) {
+                for (Object parameter : record.getParameters()) {
+                    if (parameter instanceof LogFields fields && fields.thrown().isPresent()) {
+                        thrown = fields.thrown().get();
+                    }
+                }
+            }
+            lines.add(new Line(record.getLevel(), record.getMessage(), thrown == null ? null : thrown.getClass().getName(), FORMATTER.format(record).strip()));
         }
 
         @Override
@@ -49,10 +65,10 @@ public final class LogCapture implements AutoCloseable {
         return List.copyOf(lines);
     }
 
-    /** Everything logged so far, messages and exception classes, as one text. */
+    /** Everything logged so far, messages, exception classes and the JSON lines, as one text. */
     public String text() {
         StringBuilder out = new StringBuilder();
-        lines.forEach(line -> out.append(line.level()).append(' ').append(line.message()).append(' ').append(line.thrown()).append('\n'));
+        lines.forEach(line -> out.append(line.level()).append(' ').append(line.message()).append(' ').append(line.thrown()).append(' ').append(line.json()).append('\n'));
         return out.toString();
     }
 
