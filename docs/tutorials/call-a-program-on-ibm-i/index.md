@@ -244,7 +244,14 @@ Check the configuration, on your machine only: `check` opens no connection to th
 slay400-gateway check --config config.yaml
 ```
 
-It prints one line: the configuration can be served, with its two operations. If a variable is not set, it names it, with GWY007.
+It prints:
+
+<!-- snippet: examples/call-a-program-on-ibm-i/expected/check.out -->
+```text
+slay400-gateway check: config.yaml can be served, 2 operations, 0 warnings
+```
+
+If a variable is not set, it names it, with GWY007.
 
 ## Start the gateway and call the program, on your IBM i
 
@@ -258,6 +265,13 @@ until curl -fs -o /dev/null http://127.0.0.1:8080/health/ready; do sleep 1; done
 grep '"event":"started"' gateway.log
 ```
 
+It prints the start line:
+
+<!-- snippet: examples/call-a-program-on-ibm-i/expected/start.out -->
+```text
+{"event":"started","address":"127.0.0.1","port":8080,"tenants":1,"environments":1,"operations":2,"ext":"<workdir>/_home/.slay400-gateway/ext","jt400":"21.0.7"}
+```
+
 If the command does not end within a few seconds, press Ctrl-C and read `gateway.log`.
 
 Ask for the order with the key `A1`:
@@ -268,7 +282,12 @@ Ask for the order with the key `A1`:
 curl -s http://127.0.0.1:8080/acme/prod/orders/A1
 ```
 
-The program answers with three lines, `A1-1` to `A1-3`, and a total of 123.45.
+The program answers with three lines, `A1-1` to `A1-3`, and a total:
+
+<!-- snippet: examples/call-a-program-on-ibm-i/expected/call.out -->
+```text
+{"order":{"total":"123.45","lines":[{"sku":"A1-1","quantity":10},{"sku":"A1-2","quantity":20},{"sku":"A1-3","quantity":30}]}}
+```
 
 ## When the program reports an error
 
@@ -278,6 +297,14 @@ The key `FAIL` makes the program set its error fields. The overlay maps the erro
 ```sh
 # requires: ibmi
 curl -s -w '\n%{http_code}\n' http://127.0.0.1:8080/acme/prod/orders/FAIL
+```
+
+It prints the body, then the status:
+
+<!-- snippet: examples/call-a-program-on-ibm-i/expected/call-refused-key.out -->
+```text
+{"type":"https://slay400.dev/problems/program-error","title":"The program reported an error","status":409,"detail":"The key is refused","instance":"urn:slay400:request:53440ff5-9019-4b18-a5ee-005734db4147","code":"TST0001","tenant":"acme","environment":"prod","correlationId":"53440ff5-9019-4b18-a5ee-005734db4147"}
+409
 ```
 
 The gateway answers 409 with a problem-details body that holds the program's code, `TST0001`, and its message. The [errors reference](/docs/reference/errors/) lists every status.
@@ -290,6 +317,14 @@ The operation `tstnone` calls a program that does not exist on your system:
 ```sh
 # requires: ibmi
 curl -s -w '\n%{http_code}\n' http://127.0.0.1:8080/acme/prod/missing
+```
+
+It prints the body, then the status:
+
+<!-- snippet: examples/call-a-program-on-ibm-i/expected/call-missing.out -->
+```text
+{"type":"https://slay400.dev/problems/program-call-failed","title":"The program call failed","status":502,"instance":"urn:slay400:request:d4ecd7b9-38ea-471c-9267-da509394b53e","tenant":"acme","environment":"prod","correlationId":"d4ecd7b9-38ea-471c-9267-da509394b53e"}
+502
 ```
 
 The gateway answers 502, `program-call-failed`. The body does not say why; the gateway's log does, without the library or the message of the system.
