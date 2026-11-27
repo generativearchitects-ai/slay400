@@ -1,4 +1,3 @@
-Nov 27, 2026 10:13:03 AM ai.generativearchitects.slay400.gateway.ibmi.ConnectionPool refused
-SEVERE: The IBM i of tenant acme, environment prod refused the sign-on. The gateway does not sign on again until it restarts, since repeated refused sign-ons can disable the user profile
+{"time":"<time>","level":"error","logger":"slay400.gateway.ibmi","message":"The IBM i refused the sign-on. The gateway does not sign on again until it restarts, since repeated refused sign-ons can disable the user profile","tenant":"acme","environment":"prod"}
 config.yaml:5:7: error GWY018: The backend ibmi of the environment prod cannot be opened: the sign-on was refused (return code 8)
 1 error, 0 warnings, 0 notes

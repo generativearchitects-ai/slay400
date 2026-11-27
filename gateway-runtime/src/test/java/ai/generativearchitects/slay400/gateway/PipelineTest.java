@@ -180,7 +180,8 @@ class PipelineTest {
             LogCapture.Line line = operator.lines().get(0);
             assertThat(line.level()).isEqualTo(java.util.logging.Level.INFO);
             assertThat(line.thrown()).isNull();
-            assertThat(line.message()).isEqualTo("The client went away while its body was read, correlation id gone-1");
+            assertThat(line.message()).isEqualTo("The client went away while its body was read");
+            assertThat(line.json()).contains("\"correlationId\":\"gone-1\"");
         }
         assertThat(log).hasSize(1);
         assertThat(log.get(0)).contains("\"operation\":\"itemqty\"").contains("\"status\":400").contains("\"problems\":[\"client-gone\"]");

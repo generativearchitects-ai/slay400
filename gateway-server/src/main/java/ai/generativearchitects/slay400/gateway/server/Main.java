@@ -1,5 +1,7 @@
 package ai.generativearchitects.slay400.gateway.server;
 
+import ai.generativearchitects.slay400.gateway.log.JsonLogging;
+
 import ai.generativearchitects.slay400.gateway.load.GatewayLoader;
 import ai.generativearchitects.slay400.gateway.load.OperatorLibraries;
 import ai.generativearchitects.slay400.gateway.load.StartOptions;
@@ -108,6 +110,9 @@ public final class Main {
 
     /** Runs the command line. */
     public static void main(String[] args) {
+        // Every record of Java logging, the gateway's and Helidon's, is one JSON line on standard error from here on (kickoff 11).
+        // What check and a failed start print for a person, the diagnostics and the count, are not records and stay text.
+        JsonLogging.install();
         Optional<Arguments> arguments = parse(args);
         if (arguments.isEmpty()) {
             System.err.println(USAGE);
