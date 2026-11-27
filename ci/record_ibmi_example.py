@@ -88,6 +88,17 @@ def script_for(steps_sh: Path, tools, skip: set[str]) -> tuple[str, list[str]]:
     return "\n".join(out_lines) + "\n", order
 
 
+def run_regions(script_file: Path, work: Path, env: dict[str, str]) -> tuple[dict[str, str], list[str]]:
+    """What each region printed, by name, and the regions reached, in order. Standard error goes into the same stream as
+    standard output, as a terminal shows them, so that a diagnostic stays in the region of the command that wrote it:
+    joining the two streams after the run would put all of standard error after the last region, where it is lost."""
+    result = subprocess.run(["sh", str(script_file)], cwd=work, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, timeout=TIMEOUT_SECONDS)
+    parts = run._SENTINEL_SPLIT.split(result.stdout)
+    chunks, names = parts[0::2], parts[1::2]
+    return dict(zip(names, chunks)), names
+
+
 def record(example: str, skip: set[str], values: dict[str, str]) -> list[str]:
     example_dir = run.EXAMPLES / example
     steps_sh = example_dir / "steps.sh"
@@ -119,16 +130,11 @@ def record(example: str, skip: set[str], values: dict[str, str]) -> list[str]:
         script_file = work / ".recorded.sh"
         script_file.write_text(script, encoding="utf-8")
         try:
-            result = subprocess.run(["sh", str(script_file)], cwd=work, env=env, capture_output=True, text=True,
-                                    timeout=TIMEOUT_SECONDS)
-            combined = result.stdout + result.stderr
+            captured, names = run_regions(script_file, work, env)
         except subprocess.TimeoutExpired:
             return [f"docs/examples/{example}: did not finish within {TIMEOUT_SECONDS} seconds"]
-        parts = run._SENTINEL_SPLIT.split(combined)
-        chunks, names = parts[0::2], parts[1::2]
         if names != order:
             return [f"docs/examples/{example}: expected the regions {order}, the run reached {names} (output not shown)"]
-        captured = dict(zip(order, chunks))
         problems = []
         recordings = {}
         for region in ibmi_regions:

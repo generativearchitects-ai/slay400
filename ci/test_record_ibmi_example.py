@@ -51,6 +51,22 @@ class ScriptTest(unittest.TestCase):
         self.assertLess(script.index("set +e"), script.index("echo a"))
 
 
+class RunRegionsTest(unittest.TestCase):
+
+    def test_standard_error_stays_in_the_region_that_wrote_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            steps = Path(tmp) / "steps.sh"
+            steps.write_text("#!/bin/sh\nset -eu\n\n# region: refused\necho out-1\necho err-1 >&2\nfalse\n# endregion\n\n"
+                             "# region: next\necho out-2\n# endregion\n", encoding="utf-8")
+            script, order = rec.script_for(steps, [], set())
+            script_file = Path(tmp) / "run.sh"
+            script_file.write_text(script, encoding="utf-8")
+            captured, names = rec.run_regions(script_file, Path(tmp), {"PATH": "/usr/bin:/bin"})
+        self.assertEqual(order, names)
+        self.assertEqual("out-1\nerr-1", captured["refused"].strip())
+        self.assertEqual("out-2", captured["next"].strip())
+
+
 class CommittedRecordingsTest(unittest.TestCase):
     """The recordings in the repository of regions that need IBM i."""
 
