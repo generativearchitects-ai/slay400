@@ -1,0 +1,4 @@
+two-tenants.yaml:6:3: error GWY008: The Community Edition serves 1 tenant; this configuration has 2
+1 error, 0 warnings, 0 notes
+slay400-gateway check: two-tenants.yaml cannot be served
+exit 1

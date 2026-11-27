@@ -72,7 +72,7 @@ NOTICE='This distribution does not contain JT400 (JTOpen, the IBM Toolbox for Ja
 for file in LICENSE THIRD-PARTY-NOTICES.md bom.json VERSION bin/slay400-gateway lib/gateway.jar lib/ext/README; do
   docker run --rm --read-only --entrypoint /bin/sh "$IMAGE" -c "test -s /opt/slay400/$file" || fail "the image has no /opt/slay400/$file"
 done
-docker run --rm --read-only "$IMAGE" --version | grep -q '^slay400-gateway ' || fail "no version from the launcher"
+docker run --rm --read-only "$IMAGE" --version | grep '^slay400-gateway ' >/dev/null || fail "no version from the launcher"
 
 echo "== Without a configuration it stops with the diagnostic of a missing file"
 set +e
@@ -81,7 +81,7 @@ CODE=$?
 set -e
 echo "$OUT" | tail -n 3
 [ "$CODE" -eq 1 ] || fail "exit code $CODE without a configuration, not 1"
-echo "$OUT" | grep -q "GWY001" || fail "no GWY001 without a configuration"
+echo "$OUT" | grep "GWY001" >/dev/null || fail "no GWY001 without a configuration"
 
 echo "== check, without listening"
 docker run --rm --read-only --tmpfs /tmp:rw,size=64m -v "$WORK/etc:/etc/slay400:ro" -v "$WORK/bundles:/var/lib/slay400/bundles:ro" \
@@ -94,17 +94,17 @@ docker run -d --name "$NAME" --read-only --tmpfs /tmp:rw,size=64m \
   -p "$API:8080" -p "$MANAGEMENT:9090" "$IMAGE" >/dev/null
 wait_ready
 docker logs "$NAME" 2>&1 | grep '"event":"started"'
-docker logs "$NAME" 2>&1 | grep -q '"ext":"/opt/slay400/ext","jt400":"none"' || fail "the start line does not say that there is no JTOpen"
+docker logs "$NAME" 2>&1 | grep '"ext":"/opt/slay400/ext","jt400":"none"' >/dev/null || fail "the start line does not say that there is no JTOpen"
 
 BODY=$(curl -fsS "http://$API/acme/test/orders/1001/status")
 echo "$BODY"
-echo "$BODY" | grep -q '"status":"S"' || fail "unexpected answer: $BODY"
+echo "$BODY" | grep '"status":"S"' >/dev/null || fail "unexpected answer: $BODY"
 [ "$(curl -s -o /dev/null -w '%{http_code}' "http://$API/health/live")" = "200" ] || fail "no health on the API listener"
 [ "$(curl -s -o /dev/null -w '%{http_code}' "http://$MANAGEMENT/acme/test/orders/1001/status")" = "404" ] || fail "an operation on the management listener"
 # The access line is written once the answer is sent: wait for it, briefly.
 LOGGED=no
 for _ in $(seq 1 20); do
-  if docker logs "$NAME" 2>&1 | grep -q '"bundleVersion":"1.0.0"'; then LOGGED=yes; break; fi
+  if docker logs "$NAME" 2>&1 | grep '"bundleVersion":"1.0.0"' >/dev/null; then LOGGED=yes; break; fi
   sleep 0.25
 done
 [ "$LOGGED" = yes ] || fail "the first answer was not served by 1.0.0"
@@ -115,7 +115,7 @@ mv "$WORK/bundles/shop.rpgapi.part" "$WORK/bundles/shop.rpgapi"
 SERVED=no
 for _ in $(seq 1 60); do
   curl -fsS -o /dev/null "http://$API/acme/test/orders/1001/status" || fail "a request failed during the reload"
-  if docker logs "$NAME" 2>&1 | grep -q '"bundleVersion":"1.1.0"'; then SERVED=yes; break; fi
+  if docker logs "$NAME" 2>&1 | grep '"bundleVersion":"1.1.0"' >/dev/null; then SERVED=yes; break; fi
   sleep 0.5
 done
 [ "$SERVED" = yes ] || fail "version 1.1.0 is not served"
@@ -127,7 +127,7 @@ docker stop --time 10 "$NAME" >/dev/null
 STOPPED=$(date +%s%N)
 CODE=$(docker inspect -f '{{.State.ExitCode}}' "$NAME")
 echo "Stopped in $(( (STOPPED - STARTED) / 1000000 )) ms, exit code $CODE"
-docker logs "$NAME" 2>&1 | grep -q '"event":"stopped"' || fail "the gateway did not report that it stopped"
+docker logs "$NAME" 2>&1 | grep '"event":"stopped"' >/dev/null || fail "the gateway did not report that it stopped"
 # A JVM that ends on SIGTERM through its shutdown hooks exits with 128 + 15.
 [ "$CODE" -eq 143 ] || fail "exit code $CODE after SIGTERM, not 143"
 docker rm "$NAME" >/dev/null
@@ -138,8 +138,8 @@ docker run -d --name "$NAME" --read-only --tmpfs /tmp:rw,size=64m \
   -p "$API:8080" -p "$MANAGEMENT:9090" "$IMAGE" >/dev/null
 wait_ready
 docker logs "$NAME" 2>&1 | grep '"event":"started"'
-docker logs "$NAME" 2>&1 | grep -q '"jt400":"0.0.0-stub"' || fail "the start line does not name the JTOpen found"
-docker logs "$NAME" 2>&1 | grep -q 'GWY028' || fail "no warning for a version that has not been verified"
+docker logs "$NAME" 2>&1 | grep '"jt400":"0.0.0-stub"' >/dev/null || fail "the start line does not name the JTOpen found"
+docker logs "$NAME" 2>&1 | grep 'GWY028' >/dev/null || fail "no warning for a version that has not been verified"
 curl -fsS -o /dev/null "http://$API/acme/test/orders/1001/status" || fail "the mock does not answer with JTOpen mounted"
 docker stop --time 10 "$NAME" >/dev/null
 [ "$(docker inspect -f '{{.State.ExitCode}}' "$NAME")" -eq 143 ] || fail "the second run did not stop with 143"

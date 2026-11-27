@@ -1,0 +1,33 @@
+# Every key of the gateway's configuration file. Started by ConfigurationExampleTest.
+server:
+  address: 0.0.0.0
+  port: 8443
+  tls:
+    certificate: tls/tls.crt
+    key: tls/tls.key
+    keyPassword: ${TLS_KEY_PASSWORD}
+management:
+  address: 127.0.0.1
+  port: 9090
+reload:
+  intervalSeconds: 10
+tenants:
+  acme:
+    bundles:
+      - ./bundles
+    environments:
+      test:
+        code: T0001
+        backend: mock
+      prod:
+        code: P0001
+        backend: ibmi
+        host: ${IBMI_HOST}
+        libraryList: [APPLIB, QGPL]
+        credentials:
+          user: ${IBMI_USER}
+          password: ${IBMI_PASSWORD}
+        tls: true
+        pool:
+          maxConnections: 4
+        callTimeoutSeconds: 30

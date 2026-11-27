@@ -23,7 +23,7 @@ scan_tree() {
   [ -z "$names" ] || found "$label: files named $names"
   while IFS= read -r -d '' jar; do
     jars=$((jars + 1))
-    if unzip -Z1 "$jar" 2>/dev/null | grep -q '^com/ibm/as400/'; then
+    if unzip -Z1 "$jar" 2>/dev/null | grep '^com/ibm/as400/' >/dev/null; then
       found "$label: ${jar#"$root"/} holds classes of com/ibm/as400"
     fi
   done < <(find "$root" -type f \( -name '*.jar' -o -name '*.zip' \) -print0)

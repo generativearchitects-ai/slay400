@@ -20,6 +20,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.snakeyaml.engine.v2.api.LoadSettings;
 import org.snakeyaml.engine.v2.api.lowlevel.Compose;
 import org.snakeyaml.engine.v2.exceptions.Mark;
@@ -52,15 +54,17 @@ public final class ConfigReader {
     private static final Pattern PORT = Pattern.compile("[0-9]{1,5}");
     private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{([A-Za-z_][A-Za-z0-9_]*)}");
     private static final String RESERVED = "health";
-    private static final Set<String> IBMI_KEYS = Set.of("host", "libraryList", "credentials", "tls", "pool", "callTimeoutSeconds");
-    private static final Set<String> ENVIRONMENT_KEYS = Set.of("code", "backend", "host", "libraryList", "credentials", "tls", "pool", "callTimeoutSeconds");
+    // server.host is not a key: it is accepted here only to be refused with a message that names server.address.
+    private static final Set<String> SERVER_KEYS = Stream.concat(ConfigurationKeys.children("server").stream(), Stream.of("host")).collect(Collectors.toUnmodifiableSet());
+    private static final Set<String> IBMI_KEYS = ConfigurationKeys.ibmiOnly();
+    private static final Set<String> ENVIRONMENT_KEYS = ConfigurationKeys.children(ConfigurationKeys.ENVIRONMENT_PATH);
     private static final Pattern SINGLE_PLACEHOLDER = Pattern.compile("\\$\\{[A-Za-z_][A-Za-z0-9_]*}");
     private static final Pattern HOST = Pattern.compile("[A-Za-z0-9.:\\-\\[\\]]{1,253}");
     private static final Pattern LIBRARY = Pattern.compile("[A-Za-z$#@][A-Za-z0-9$#@_.]{0,9}");
     private static final Pattern WHOLE = Pattern.compile("[0-9]{1,6}");
-    private static final int MAX_LIBRARIES = 250;
-    private static final int MAX_POOL = 64;
-    private static final int MAX_CALL_TIMEOUT_SECONDS = 3600;
+    private static final int MAX_LIBRARIES = ConfigurationKeys.MAX_LIBRARIES;
+    private static final int MAX_POOL = ConfigurationKeys.MAX_POOL;
+    private static final int MAX_CALL_TIMEOUT_SECONDS = ConfigurationKeys.MAX_CALL_TIMEOUT_SECONDS;
     private static final Set<String> CORE_TAGS = Set.of("tag:yaml.org,2002:str", "tag:yaml.org,2002:int", "tag:yaml.org,2002:float",
             "tag:yaml.org,2002:bool", "tag:yaml.org,2002:null", "tag:yaml.org,2002:map", "tag:yaml.org,2002:seq",
             // The YAML library gives an unquoted ${NAME} this tag of its own; it is read as text, like any placeholder.
@@ -172,7 +176,7 @@ public final class ConfigReader {
     }
 
     private Optional<GatewayConfig> top(Node root) {
-        Optional<Map<String, Node>> entries = entries(root, Set.of("server", "management", "reload", "tenants"), "The configuration");
+        Optional<Map<String, Node>> entries = entries(root, ConfigurationKeys.children(""), "The configuration");
         if (entries.isEmpty()) {
             return Optional.empty();
         }
@@ -181,7 +185,7 @@ public final class ConfigReader {
         Optional<TlsSettings> tls = Optional.empty();
         Node server = entries.get().get("server");
         if (server != null) {
-            Optional<Map<String, Node>> settings = entries(server, Set.of("address", "port", "tls", "host"), "The section server");
+            Optional<Map<String, Node>> settings = entries(server, SERVER_KEYS, "The section server");
             if (settings.isPresent()) {
                 if (settings.get().containsKey("host")) {
                     error("GWY002", "Unknown key host: the address of the listener is server.address", at(keyNode(server, "host")));
@@ -200,19 +204,19 @@ public final class ConfigReader {
         ManagementConfig management = ManagementConfig.DEFAULTS;
         Node managementNode = entries.get().get("management");
         if (managementNode != null) {
-            Optional<Map<String, Node>> settings = entries(managementNode, Set.of("address", "port"), "The section management");
+            Optional<Map<String, Node>> settings = entries(managementNode, ConfigurationKeys.children("management"), "The section management");
             if (settings.isPresent()) {
                 String managementAddress = address(settings.get().get("address"), "management.address").orElse(ManagementConfig.DEFAULT_ADDRESS);
                 Node portNode = settings.get().get("port");
                 int managementPort = portNode == null ? ManagementConfig.DEFAULT_PORT
-                        : whole(portNode, "management.port", 0, 65535).orElse(ManagementConfig.DEFAULT_PORT);
+                        : whole(portNode, "management.port", 0, ConfigurationKeys.MAX_PORT).orElse(ManagementConfig.DEFAULT_PORT);
                 management = new ManagementConfig(managementAddress, managementPort);
             }
         }
         int reloadInterval = GatewayConfig.DEFAULT_RELOAD_INTERVAL_SECONDS;
         Node reload = entries.get().get("reload");
         if (reload != null) {
-            Optional<Map<String, Node>> settings = entries(reload, Set.of("intervalSeconds"), "The section reload");
+            Optional<Map<String, Node>> settings = entries(reload, ConfigurationKeys.children("reload"), "The section reload");
             if (settings.isPresent()) {
                 Node intervalNode = settings.get().get("intervalSeconds");
                 if (intervalNode != null) {
@@ -254,7 +258,7 @@ public final class ConfigReader {
      * optional {@code keyPassword}, which must be exactly one {@code ${NAME}} placeholder (GWY015, as a credential).
      */
     private Optional<TlsSettings> tls(Node node) {
-        Optional<Map<String, Node>> entries = entries(node, Set.of("certificate", "key", "keyPassword"), "The section server.tls");
+        Optional<Map<String, Node>> entries = entries(node, ConfigurationKeys.children("server.tls"), "The section server.tls");
         if (entries.isEmpty()) {
             return Optional.empty();
         }
@@ -302,17 +306,17 @@ public final class ConfigReader {
         }
         if (PORT.matcher(text.get()).matches()) {
             int value = Integer.parseInt(text.get());
-            if (value >= 1 && value <= 65535) {
+            if (value >= 1 && value <= ConfigurationKeys.MAX_PORT) {
                 return Optional.of(value);
             }
         }
-        error("GWY006", "server.port must be a whole number from 1 to 65535", at(node));
+        error("GWY006", "server.port must be a whole number from 1 to " + ConfigurationKeys.MAX_PORT, at(node));
         return Optional.empty();
     }
 
     private Optional<TenantConfig> tenant(String name, Node node, Node keyNode) {
         checkName(name, "tenant", keyNode);
-        Optional<Map<String, Node>> entries = entries(node, Set.of("bundles", "environments"), "The tenant " + safe(name));
+        Optional<Map<String, Node>> entries = entries(node, ConfigurationKeys.children(ConfigurationKeys.TENANT_PATH), "The tenant " + safe(name));
         if (entries.isEmpty()) {
             return Optional.empty();
         }
@@ -448,7 +452,7 @@ public final class ConfigReader {
         int maxConnections = IbmiSettings.DEFAULT_MAX_CONNECTIONS;
         Node poolNode = entries.get("pool");
         if (poolNode != null) {
-            Optional<Map<String, Node>> pool = entries(poolNode, Set.of("maxConnections"), "The section pool");
+            Optional<Map<String, Node>> pool = entries(poolNode, ConfigurationKeys.children(ConfigurationKeys.ENVIRONMENT_PATH + ".pool"), "The section pool");
             if (pool.isPresent() && pool.get().get("maxConnections") != null) {
                 maxConnections = whole(pool.get().get("maxConnections"), "pool.maxConnections", 1, MAX_POOL).orElse(maxConnections);
             }
@@ -474,7 +478,7 @@ public final class ConfigReader {
             error("GWY005", "The environment " + safe(name) + " has no key credentials", at(keyNode));
             return Optional.empty();
         }
-        Optional<Map<String, Node>> entries = entries(node, Set.of("user", "password"), "The section credentials");
+        Optional<Map<String, Node>> entries = entries(node, ConfigurationKeys.children(ConfigurationKeys.ENVIRONMENT_PATH + ".credentials"), "The section credentials");
         if (entries.isEmpty()) {
             return Optional.empty();
         }

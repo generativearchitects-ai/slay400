@@ -1,0 +1,5 @@
+HTTP/1.1 400 Bad Request
+Content-Type: application/problem+json
+X-Correlation-Id: example-request-invalid
+
+{"type":"https://slay400.dev/problems/request-invalid","title":"The request is not valid","status":400,"detail":"The request has 1 problem; see errors.","instance":"urn:slay400:request:example-request-invalid","errors":[{"field":"quantity","code":"REQ007","message":"Body field must be a whole number"}],"tenant":"acme","environment":"test","correlationId":"example-request-invalid"}

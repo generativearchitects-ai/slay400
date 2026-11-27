@@ -1,0 +1,2 @@
+"tenant":"acme","environment":"test","operation":"ordstatus","method":"GET","route":"/orders/{orderNumber}/status","bundle":"shop","bundleVersion":"1.0.0","status":200
+"tenant":"acme","environment":"test","operation":"itemqty","method":"POST","route":"/items/{sku}/quantity","bundle":"shop","bundleVersion":"1.0.0","status":200

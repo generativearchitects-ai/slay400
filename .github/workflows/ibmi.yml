@@ -109,6 +109,24 @@ jobs:
           kill -TERM "$PID"
           wait "$PID" || true
           [ "$STATUS" = 200 ]
+      - name: The documentation example that needs IBM i (gateway kickoff 09)
+        # Runs docs/examples/call-a-program-on-ibm-i as the page shows it, with the regions marked "requires: ibmi", except
+        # compile (the setup tool above compiled TSTNESTED) and credentials (the secrets are already set). Signs on twice,
+        # once refused on purpose, and makes three calls. Every value of the system is written as the page's placeholder,
+        # and the recorder fails without writing if one is left. The recordings are uploaded as ibmi-docs-recordings.
+        if: ${{ !cancelled() }}
+        run: |
+          SLAY400_CORE_ARCHIVE="$(ci/core-archive.sh "$RUNNER_TEMP/slay400-core")"
+          export SLAY400_CORE_ARCHIVE
+          python3 ci/record_ibmi_example.py call-a-program-on-ibm-i --skip compile,credentials
+      - name: Keep the recordings of the documentation example
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ibmi-docs-recordings
+          path: docs/examples/call-a-program-on-ibm-i/expected
+          if-no-files-found: error
+          retention-days: 7
       - name: Keep the compiler's PCML, the differences and the spike report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

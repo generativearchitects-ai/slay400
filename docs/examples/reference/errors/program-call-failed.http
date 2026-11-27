@@ -1,0 +1,5 @@
+HTTP/1.1 502 Bad Gateway
+Content-Type: application/problem+json
+X-Correlation-Id: example-program-call-failed
+
+{"type":"https://slay400.dev/problems/program-call-failed","title":"The program call failed","status":502,"instance":"urn:slay400:request:example-program-call-failed","tenant":"acme","environment":"test","correlationId":"example-program-call-failed"}

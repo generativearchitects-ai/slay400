@@ -1,0 +1,5 @@
+HTTP/1.1 504 Gateway Timeout
+Content-Type: application/problem+json
+X-Correlation-Id: example-program-timeout
+
+{"type":"https://slay400.dev/problems/program-timeout","title":"The program did not answer in time","status":504,"instance":"urn:slay400:request:example-program-timeout","tenant":"acme","environment":"test","correlationId":"example-program-timeout"}

@@ -89,4 +89,47 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           shellcheck --version | head -n 2
-          shellcheck gateway-server/src/launcher/bin/slay400-gateway ci/container-test.sh ci/no-jt400.sh
+          shellcheck gateway-server/src/launcher/bin/slay400-gateway ci/container-test.sh ci/no-jt400.sh install.sh ci/core-archive.sh
+      # install.sh and install.ps1 (gateway kickoff 09), against a local stand-in for GitHub Releases, never the network:
+      # install.sh on Linux and macOS, install.ps1 with pwsh on all three.
+      - name: The install script tests
+        run: python3 -m unittest scripts.test_install -v
+      - name: PSScriptAnalyzer on install.ps1
+        if: runner.os == 'Linux'
+        shell: pwsh
+        run: |
+          Install-Module -Name PSScriptAnalyzer -RequiredVersion 1.25.0 -Force -Scope CurrentUser -Repository PSGallery
+          $results = Invoke-ScriptAnalyzer -Path install.ps1 -Severity Warning,Error
+          if ($results) {
+            $results | Format-Table -AutoSize
+            exit 1
+          }
+
+  # The documentation (gateway kickoff 09, specs/documentation.md section 5): the checks of slay400-core, copied unchanged
+  # into scripts/docs, and every example run with the gateway built here and the slay400-core release this build depends on.
+  # The regions that need IBM i are not run here: the manual ibmi workflow records them. The generated reference pages are
+  # checked for staleness by their own tests in the verify job.
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Tests of the docs scripts and of the IBM i recorder
+        run: |
+          python3 -m unittest discover -s scripts/docs
+          python3 -m unittest discover -s ci -p 'test_*.py'
+      - name: Front matter and snippets
+        run: |
+          python3 scripts/docs/check_front_matter.py
+          python3 scripts/docs/check_snippets.py
+      - name: Build the distribution
+        run: ./mvnw -B package -DskipTests
+      - name: The examples
+        run: |
+          SLAY400_CORE_ARCHIVE="$(ci/core-archive.sh "$RUNNER_TEMP/slay400-core")"
+          export SLAY400_CORE_ARCHIVE
+          python3 scripts/docs/run_examples.py

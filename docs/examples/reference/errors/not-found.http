@@ -1,0 +1,5 @@
+HTTP/1.1 404 Not Found
+Content-Type: application/problem+json
+X-Correlation-Id: example-not-found
+
+{"type":"https://slay400.dev/problems/not-found","title":"Not found","status":404,"instance":"urn:slay400:request:example-not-found","correlationId":"example-not-found"}

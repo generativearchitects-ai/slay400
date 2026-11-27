@@ -1,0 +1,5 @@
+HTTP/1.1 503 Service Unavailable
+Content-Type: application/problem+json
+X-Correlation-Id: example-service-unavailable
+
+{"type":"https://slay400.dev/problems/service-unavailable","title":"Service unavailable","status":503,"instance":"urn:slay400:request:example-service-unavailable","tenant":"acme","environment":"test","correlationId":"example-service-unavailable"}

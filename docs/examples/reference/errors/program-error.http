@@ -1,0 +1,5 @@
+HTTP/1.1 422 Unprocessable Content
+Content-Type: application/problem+json
+X-Correlation-Id: example-program-error
+
+{"type":"https://slay400.dev/problems/program-error","title":"The program reported an error","status":422,"detail":"Order refused","instance":"urn:slay400:request:example-program-error","code":"E999","tenant":"acme","environment":"test","correlationId":"example-program-error"}

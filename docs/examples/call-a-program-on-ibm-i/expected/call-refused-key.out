@@ -1,0 +1,2 @@
+{"type":"https://slay400.dev/problems/program-error","title":"The program reported an error","status":409,"detail":"The key is refused","instance":"urn:slay400:request:53440ff5-9019-4b18-a5ee-005734db4147","code":"TST0001","tenant":"acme","environment":"prod","correlationId":"53440ff5-9019-4b18-a5ee-005734db4147"}
+409

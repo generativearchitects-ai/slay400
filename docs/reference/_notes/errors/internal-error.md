@@ -1,0 +1,1 @@
+Something failed inside the gateway that it did not expect. The body says nothing of the cause; the gateway logs the access line with status 500. If it happens again, report it with the correlation ID.

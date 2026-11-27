@@ -1,0 +1,5 @@
+HTTP/1.1 400 Bad Request
+Content-Type: application/problem+json
+X-Correlation-Id: <generated>
+
+{"type":"https://slay400.dev/problems/request-invalid","title":"The request is not valid","status":400,"instance":"urn:slay400:request:<generated>","correlationId":"<generated>"}
